@@ -1,19 +1,19 @@
 {
   "iteration": 701,
-  "timestamp": 1791393061.0084808,
+  "timestamp": 1791458547.2932694,
   "food_collected": 49,
   "avg_pheromone": 0.0006223347295076686,
   "ants_with_food": 136,
   "ants_count": 1390,
   "execution_statistics": {
-    "execution_time_seconds": 30.498249769210815,
-    "throughput": 45.576385875207166,
-    "speedup": 1.0424061256023343,
-    "efficiency_percent": 34.746870853411146,
+    "execution_time_seconds": 36.04607089993078,
+    "throughput": 38.56176180363306,
+    "speedup": 0.9290380661172796,
+    "efficiency_percent": 30.967935537242653,
     "threads": 5,
     "processes": 3,
-    "started_at": "2026-10-08T00:10:30+07:00",
-    "iteration_time_seconds": 0.04800670000258833
+    "started_at": "2026-10-08T18:21:51+07:00",
+    "iteration_time_seconds": 0.05236890004016459
   },
   "world_summary": {
     "food_remaining": 815,
