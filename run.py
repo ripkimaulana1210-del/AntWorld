@@ -2,6 +2,8 @@
 
 import argparse
 from datetime import datetime
+import os
+import sys
 import threading
 import time
 import webbrowser
@@ -27,8 +29,11 @@ def run_demo(iterations: int, open_browser: bool = True) -> None:
     ants = config.ANTS
     threads = config.THREADS
     processes = config.PROCESSES
-    url = f"http://{config.DASHBOARD_HOST}:{config.DASHBOARD_PORT}"
-    dashboard = DashboardServer()
+    bind_host = config.DASHBOARD_HOST
+    port = config.DASHBOARD_PORT
+    display_host = "localhost" if bind_host in ("0.0.0.0", "") else bind_host
+    url = f"http://{display_host}:{port}"
+    dashboard = DashboardServer(host=bind_host, port=port)
     io_manager = IOTaskManager(threads)
     hybrid = None
 
@@ -42,6 +47,8 @@ def run_demo(iterations: int, open_browser: bool = True) -> None:
     print(f"Ants       : {ants}")
     print(f"Seed       : {config.SEED}")
     print("Mode       : HYBRID")
+    print(f"Host       : {bind_host}")
+    print(f"Port       : {port}")
     print(f"Dashboard  : {url}")
     print("Status     : READY - menunggu START dari dashboard")
     print("=" * 46)
@@ -53,8 +60,8 @@ def run_demo(iterations: int, open_browser: bool = True) -> None:
         except OSError as error:
             if getattr(error, 'winerror', None) == 10048 or 'address already in use' in str(error).lower():
                 raise RuntimeError(
-                    f"Port {config.DASHBOARD_PORT} sedang digunakan. Tutup server ANT WORLD "
-                    f"yang lama, lalu jalankan kembali: python run.py"
+                    f"Port {port} sedang digunakan. Tutup server ANT WORLD "
+                    f"yang lama, atau gunakan PORT lain: set PORT=xxxx"
                 ) from error
             raise
         simulation = Simulation(ants, config.SEED)
@@ -73,7 +80,10 @@ def run_demo(iterations: int, open_browser: bool = True) -> None:
         initial['status'] = 'ready'
         dashboard.update_state(initial)
         if open_browser:
-            webbrowser.open(url)
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
 
         print("Dashboard siap. Tekan tombol START pada HUD untuk memulai simulasi.")
         while not dashboard.wait_for_start(timeout=0.25):
@@ -196,7 +206,15 @@ def main() -> None:
     parser.add_argument('--no-browser', action='store_true', help='Jangan membuka browser otomatis')
     args = parser.parse_args()
     Path('results/checkpoints').mkdir(parents=True, exist_ok=True)
-    run_demo(args.iterations, open_browser=not args.no_browser)
+
+    # Deteksi lingkungan headless / cloud (misal Railway atau Linux container)
+    is_headless = bool(
+        args.no_browser or
+        os.environ.get('RAILWAY_ENVIRONMENT') or
+        os.environ.get('RAILWAY_SERVICE_ID') or
+        (not sys.platform.startswith('win') and not os.environ.get('DISPLAY'))
+    )
+    run_demo(args.iterations, open_browser=not is_headless)
 
 
 if __name__ == '__main__':

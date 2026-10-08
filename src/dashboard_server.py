@@ -5,8 +5,11 @@ import json
 from pathlib import Path
 import threading
 from typing import Dict, Optional
+from urllib.parse import urlparse
 
 import config
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class DashboardState:
@@ -50,19 +53,21 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path == '/api/state':
+        clean_path = urlparse(self.path).path
+
+        if clean_path == '/api/state':
             state = dashboard_state.get()
             self._send_json(200, state or {
                 'status': 'starting', 'message': 'Menunggu state simulasi'
             })
             return
 
-        if self.path in ('/', '/index.html'):
-            self._serve_file(Path('dashboard/index.html'), 'text/html; charset=utf-8')
+        if clean_path in ('/', '/index.html'):
+            self._serve_file(PROJECT_ROOT / 'dashboard' / 'index.html', 'text/html; charset=utf-8')
             return
 
-        if self.path.startswith('/dashboard/'):
-            filepath = Path(self.path.lstrip('/'))
+        if clean_path.startswith('/dashboard/'):
+            filepath = PROJECT_ROOT / clean_path.lstrip('/')
             content_types = {
                 '.html': 'text/html; charset=utf-8',
                 '.css': 'text/css; charset=utf-8',
@@ -74,14 +79,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._serve_file(filepath, content_types.get(filepath.suffix.lower(), 'application/octet-stream'))
             return
 
-        if self.path == '/api/benchmark':
-            self._serve_file(Path('results/benchmark_results.csv'), 'text/csv; charset=utf-8')
+        if clean_path == '/api/benchmark':
+            self._serve_file(PROJECT_ROOT / 'results' / 'benchmark_results.csv', 'text/csv; charset=utf-8')
             return
 
         self.send_error(404)
 
     def do_POST(self):
-        if self.path != '/api/control/start':
+        clean_path = urlparse(self.path).path
+        if clean_path != '/api/control/start':
             self.send_error(404)
             return
         accepted = dashboard_state.request_start()
@@ -91,16 +97,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         })
 
     def _serve_file(self, filepath: Path, content_type: str) -> None:
-        if not filepath.exists() or not filepath.is_file():
-            self.send_error(404)
-            return
-        body = filepath.read_bytes()
-        self.send_response(200)
-        self.send_header('Content-Type', content_type)
-        self.send_header('Content-Length', str(len(body)))
-        self.send_header('Cache-Control', 'no-cache')
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            resolved = filepath.resolve()
+            if not resolved.exists() or not resolved.is_file():
+                self.send_error(404)
+                return
+            body = resolved.read_bytes()
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Cache-Control', 'no-cache')
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception:
+            self.send_error(500)
 
     def log_message(self, format, *args):
         pass
@@ -110,8 +120,8 @@ class DashboardServer:
     """Manage dashboard HTTP server in a background thread."""
 
     def __init__(self, host: str | None = None, port: int | None = None):
-        self.host = host or config.DASHBOARD_HOST
-        self.port = port or config.DASHBOARD_PORT
+        self.host = host if host is not None else config.DASHBOARD_HOST
+        self.port = int(port) if port is not None else config.DASHBOARD_PORT
         self.server: Optional[ThreadingHTTPServer] = None
         self.thread: Optional[threading.Thread] = None
         self.running = False
