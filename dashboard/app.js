@@ -585,34 +585,80 @@ class AntWorldDashboard {
 
   drawRock(ctx, x, y, radius) {
     ctx.save();
-    const gradient = ctx.createLinearGradient(x - radius, y - radius, x + radius, y + radius);
-    gradient.addColorStop(0, '#cbd5e1'); gradient.addColorStop(.5, '#94a3b8'); gradient.addColorStop(1, '#64748b');
-    ctx.fillStyle = gradient; ctx.strokeStyle = '#64748b'; ctx.lineWidth = Math.max(.6, radius * .12);
-    ctx.beginPath(); ctx.moveTo(x - radius, y - radius * .25); ctx.lineTo(x - radius * .45, y - radius * .9);
-    ctx.lineTo(x + radius * .42, y - radius * .78); ctx.lineTo(x + radius, y - radius * .1);
-    ctx.lineTo(x + radius * .69, y + radius * .73); ctx.lineTo(x - radius * .4, y + radius * .84);
-    ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.lineWidth = Math.max(.6, radius * .12);
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = '#64748b'; ctx.strokeStyle = '#475569';
+    ctx.beginPath();
+    ctx.moveTo(x - radius * .96, y - radius * .18);
+    ctx.lineTo(x - radius * .72, y - radius * .73);
+    ctx.lineTo(x - radius * .22, y - radius * .91);
+    ctx.lineTo(x + radius * .18, y - radius * .68);
+    ctx.lineTo(x + radius * .78, y - radius * .61);
+    ctx.lineTo(x + radius * .98, y - radius * .08);
+    ctx.lineTo(x + radius * .66, y + radius * .61);
+    ctx.lineTo(x + radius * .12, y + radius * .87);
+    ctx.lineTo(x - radius * .51, y + radius * .72);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.beginPath();
+    ctx.moveTo(x - radius * .68, y - radius * .56);
+    ctx.lineTo(x - radius * .2, y - radius * .78);
+    ctx.lineTo(x + radius * .18, y - radius * .56);
+    ctx.lineTo(x - radius * .08, y - radius * .1);
+    ctx.lineTo(x - radius * .75, y + radius * .02);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#475569';
+    ctx.beginPath();
+    ctx.moveTo(x - radius * .08, y - radius * .1);
+    ctx.lineTo(x + radius * .18, y - radius * .56);
+    ctx.lineTo(x + radius * .78, y - radius * .48);
+    ctx.lineTo(x + radius * .86, y - radius * .04);
+    ctx.lineTo(x + radius * .55, y + radius * .5);
+    ctx.lineTo(x + radius * .12, y + radius * .7);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
   }
 
   drawFoodCluster(ctx, x, y, cell, amount) {
-    const radius = cell * .16;
     ctx.save();
-    const offsets = [[0, 0], [-.22, -.14], [.23, -.16], [-.19, .2], [.22, .2], [0, -.3], [0, .31]];
+    const offsets = [[0, 0], [-.24, -.18], [.24, -.17], [-.2, .2], [.22, .2], [0, -.31], [0, .31]];
     offsets.slice(0, Math.min(offsets.length, amount)).forEach(([dx, dy], index) => {
-      ctx.beginPath(); ctx.fillStyle = index % 2 ? '#16a34a' : '#4ade80';
-      ctx.arc(x + dx * cell, y + dy * cell, radius * (index ? .84 : 1.12), 0, Math.PI * 2); ctx.fill();
+      const cx = x + dx * cell;
+      const cy = y + dy * cell;
+      const size = cell * (index ? .24 : .29);
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate((index % 2 ? -1 : 1) * .42);
+      ctx.fillStyle = index % 2 ? '#15803d' : '#22c55e';
+      ctx.beginPath();
+      ctx.moveTo(-size, 0);
+      ctx.quadraticCurveTo(-size * .18, -size * .8, size, -size * .12);
+      ctx.quadraticCurveTo(size * .12, size * .8, -size, 0);
+      ctx.fill();
+      ctx.strokeStyle = '#bbf7d0'; ctx.lineWidth = Math.max(.45, cell * .035);
+      ctx.beginPath(); ctx.moveTo(-size * .72, size * .02); ctx.lineTo(size * .68, -size * .04); ctx.stroke();
+      ctx.fillStyle = '#166534';
+      ctx.beginPath(); ctx.arc(size * .42, -size * .03, size * .25, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     });
     ctx.restore();
   }
 
   drawNest(ctx, x, y, cell) {
     ctx.save();
-    ctx.fillStyle = 'rgba(234,179,8,.14)'; ctx.beginPath(); ctx.arc(x, y, cell * 2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#facc15'; ctx.strokeStyle = '#ca8a04'; ctx.lineWidth = Math.max(1, cell * .12);
-    ctx.beginPath(); ctx.ellipse(x, y + cell * .12, cell * 1.7, cell * .9, 0, Math.PI, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#eab308'; ctx.beginPath(); ctx.arc(x, y - cell * .13, cell * .34, 0, Math.PI * 2); ctx.fill();
-    ctx.font = `600 ${Math.max(8, cell * .8)}px Manrope, sans-serif`; ctx.textAlign = 'center';
-    ctx.fillStyle = '#854d0e'; ctx.fillText('NEST', x, y + cell * 1.65);
+    ctx.fillStyle = '#eab308'; ctx.strokeStyle = '#a16207'; ctx.lineWidth = Math.max(1, cell * .12);
+    ctx.beginPath();
+    ctx.moveTo(x - cell * 1.65, y + cell * .42);
+    ctx.quadraticCurveTo(x - cell * 1.25, y - cell * .48, x - cell * .35, y - cell * .68);
+    ctx.quadraticCurveTo(x + cell * .72, y - cell * .94, x + cell * 1.55, y - cell * .14);
+    ctx.quadraticCurveTo(x + cell * 1.86, y + cell * .2, x + cell * 1.48, y + cell * .56);
+    ctx.quadraticCurveTo(x, y + cell * .98, x - cell * 1.65, y + cell * .42);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath(); ctx.ellipse(x - cell * .42, y - cell * .2, cell * .68, cell * .24, -.28, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#713f12';
+    ctx.beginPath(); ctx.ellipse(x + cell * .12, y + cell * .38, cell * .43, cell * .3, 0, Math.PI, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#422006';
+    ctx.beginPath(); ctx.ellipse(x + cell * .12, y + cell * .42, cell * .3, cell * .2, 0, Math.PI, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
