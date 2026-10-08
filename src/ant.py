@@ -11,13 +11,16 @@ import config
 class Ant:
     """Individual ant agent with foraging behavior"""
     
-    def __init__(self, ant_id: int, nest_position: Tuple[int, int], seed: int = None):
+    def __init__(self, ant_id: int, nest_position: Tuple[int, int], seed: int = None,
+                 exploration_mode: str = 'baseline'):
         self.id = ant_id
         self.nest_position = nest_position
         self.position = nest_position
         self.has_food = False
         self.behavior = 'at_nest'
         self.path: List[Tuple[int, int]] = []
+        self.exploration_mode = exploration_mode
+        self.visit_history: List[Tuple[int, int]] = []
         # Use Python's random for deterministic behavior with large seeds
         if seed is not None:
             self.ant_rng = random.Random(seed)
@@ -32,6 +35,12 @@ class Ant:
         
         if not neighbors:
             return  # Stuck, no valid moves
+
+        if self.exploration_mode == 'foraging' and not self.has_food:
+            recent = set(self.visit_history[-16:])
+            unvisited = [neighbor for neighbor in neighbors if neighbor not in recent]
+            if unvisited:
+                neighbors = unvisited
         
         if self.has_food:
             # Return to nest - follow gradient toward nest
@@ -69,6 +78,9 @@ class Ant:
         iteration_rng = random.Random(iteration_seed)
         choice_idx = iteration_rng.choices(range(len(neighbors)), weights=probabilities, k=1)[0]
         self.position = neighbors[choice_idx]
+        if self.exploration_mode == 'foraging' and not self.has_food:
+            self.visit_history.append(self.position)
+            del self.visit_history[:-16]
         if self.has_food:
             self.behavior = 'returning'
         elif world.get_pheromone(*self.position) > 0:
@@ -133,4 +145,5 @@ class Ant:
             'has_food': self.has_food,
             'path': self.path.copy(),
             'behavior': self.behavior,
+            'visit_history': self.visit_history.copy(),
         }

@@ -13,8 +13,10 @@ import config
 class Simulation:
     """Manages the ant colony simulation"""
     
-    def __init__(self, num_ants: int, seed: int = None):
+    def __init__(self, num_ants: int, seed: int = None,
+                 exploration_mode: str = 'baseline'):
         self.seed = seed
+        self.exploration_mode = exploration_mode
         # Use Python's random.seed() with exact NIM value for deterministic comparison
         if seed is not None:
             random.seed(seed)
@@ -28,7 +30,7 @@ class Simulation:
         self.ants: List[Ant] = []
         for i in range(num_ants):
             ant_seed = None if seed is None else seed + i
-            ant = Ant(i, config.NEST_POSITION, ant_seed)
+            ant = Ant(i, config.NEST_POSITION, ant_seed, exploration_mode)
             self.ants.append(ant)
         
         # Simulation state

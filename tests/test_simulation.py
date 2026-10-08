@@ -100,6 +100,22 @@ class TestSimulation(unittest.TestCase):
         self.assertEqual(metrics1['food_collected'], metrics2['food_collected'])
         self.assertEqual(metrics1['iteration'], metrics2['iteration'])
 
+    def test_default_mode_matches_explicit_baseline(self):
+        default = Simulation(num_ants=20, seed=321)
+        baseline = Simulation(num_ants=20, seed=321, exploration_mode='baseline')
+
+        for _ in range(25):
+            default.step()
+            baseline.step()
+
+        self.assertEqual(default.get_metrics(), baseline.get_metrics())
+        self.assertEqual(
+            [ant.get_state_dict_full() for ant in default.ants],
+            [ant.get_state_dict_full() for ant in baseline.ants],
+        )
+        self.assertEqual(default.world.pheromone_grid.tolist(),
+                         baseline.world.pheromone_grid.tolist())
+
 
 if __name__ == '__main__':
     unittest.main()

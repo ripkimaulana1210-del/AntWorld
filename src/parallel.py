@@ -25,7 +25,8 @@ def worker_step_ants(args: tuple) -> Dict:
     Returns:
         Dict with updated ant states and actions (food collected, deposits, pheromones)
     """
-    ant_states, world_snapshot, iteration, chunk_id, base_seed = args
+    ant_states, world_snapshot, iteration, chunk_id, base_seed, *mode_args = args
+    exploration_mode = mode_args[0] if mode_args else 'baseline'
     
     # Unpack world snapshot
     width = world_snapshot['width']
@@ -47,6 +48,7 @@ def worker_step_ants(args: tuple) -> Dict:
         position = ant_state['position']
         has_food = ant_state['has_food']
         path = ant_state['path']
+        visit_history = ant_state.get('visit_history', []).copy()
         
         # Initialize deterministic RNG using same formula as serial mode
         iteration_seed = (ant_id * 100000 + iteration) % (2**31)
@@ -67,6 +69,12 @@ def worker_step_ants(args: tuple) -> Dict:
             # Stuck, don't move
             updated_ants.append(ant_state)
             continue
+
+        if exploration_mode == 'foraging' and not has_food:
+            recent = set(visit_history[-16:])
+            unvisited = [neighbor for neighbor in neighbors if neighbor not in recent]
+            if unvisited:
+                neighbors = unvisited
         
         # Movement logic
         if has_food:
@@ -98,6 +106,9 @@ def worker_step_ants(args: tuple) -> Dict:
         # Choose next position
         choice_idx = ant_rng.choices(range(len(neighbors)), weights=probabilities, k=1)[0]
         new_position = neighbors[choice_idx]
+        if exploration_mode == 'foraging' and not has_food:
+            visit_history.append(new_position)
+            visit_history = visit_history[-16:]
         if has_food:
             behavior = 'returning'
         elif pheromone_grid[new_position[1]][new_position[0]] > 0:
@@ -134,6 +145,7 @@ def worker_step_ants(args: tuple) -> Dict:
             'has_food': new_has_food,
             'path': new_path,
             'behavior': behavior,
+            'visit_history': visit_history,
         })
     
     return {
@@ -181,7 +193,8 @@ class HybridSimulation:
         
         # Prepare work items
         work_items = [
-            (ant_chunks[i], world_snapshot, self.sim.iteration, i, self.sim.seed)
+            (ant_chunks[i], world_snapshot, self.sim.iteration, i, self.sim.seed,
+             self.sim.exploration_mode)
             for i in range(len(ant_chunks))
         ]
         
@@ -212,6 +225,7 @@ class HybridSimulation:
             ant.has_food = updated_state['has_food']
             ant.path = updated_state['path']
             ant.behavior = updated_state.get('behavior', 'searching')
+            ant.visit_history = updated_state.get('visit_history', [])
         
         # Process food collection deterministically (by ant_id order)
         all_food_attempts = []

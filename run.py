@@ -74,7 +74,7 @@ def run_demo(iterations: int, open_browser: bool = True) -> None:
 
         # Interactive simulation lifecycle loop
         while True:
-            simulation = Simulation(ants, config.SEED)
+            simulation = Simulation(ants, config.SEED, exploration_mode='foraging')
             simulation.total_iterations = iterations
             initial = simulation.get_state()
             initial['performance'] = {
@@ -113,7 +113,7 @@ def run_demo(iterations: int, open_browser: bool = True) -> None:
                 dashboard.clear_start_request()
                 continue
 
-            simulation = Simulation(ants, config.SEED)
+            simulation = Simulation(ants, config.SEED, exploration_mode='foraging')
             simulation.total_iterations = iterations
             hybrid = HybridSimulation(simulation, processes)
 

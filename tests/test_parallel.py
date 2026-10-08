@@ -115,6 +115,29 @@ class TestParallel(unittest.TestCase):
                               metrics_hybrid['avg_pheromone'], 
                               places=5,
                               msg="Average pheromone should be close")
+
+    def test_foraging_mode_serial_hybrid_determinism(self):
+        seed = 2718
+        serial = Simulation(num_ants=30, seed=seed, exploration_mode='foraging')
+        hybrid_simulation = Simulation(num_ants=30, seed=seed, exploration_mode='foraging')
+        hybrid = HybridSimulation(hybrid_simulation, num_processes=2)
+
+        try:
+            for _ in range(60):
+                serial.step()
+                hybrid.step_parallel()
+
+            self.assertEqual(serial.get_metrics(), hybrid_simulation.get_metrics())
+            self.assertEqual(
+                [ant.get_state_dict_full() for ant in serial.ants],
+                [ant.get_state_dict_full() for ant in hybrid_simulation.ants],
+            )
+            self.assertEqual(serial.world.food_grid.tolist(),
+                             hybrid_simulation.world.food_grid.tolist())
+            self.assertEqual(serial.world.pheromone_grid.tolist(),
+                             hybrid_simulation.world.pheromone_grid.tolist())
+        finally:
+            hybrid.shutdown()
     
     def test_exception_propagation(self):
         """Test that worker exceptions are propagated"""
