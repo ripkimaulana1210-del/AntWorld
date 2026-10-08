@@ -1,0 +1,22 @@
+{
+  "total_food_collected": 0,
+  "total_iterations": 5,
+  "execution_time_seconds": 0.20289063453674316,
+  "final_avg_pheromone": 0.0,
+  "throughput": 6850.981580168863,
+  "best_path_length": null,
+  "avg_path_length": null,
+  "mode": "serial",
+  "final_metrics": {
+    "iteration": 5,
+    "status": "running",
+    "food_collected": 0,
+    "total_trips": 0,
+    "food_remaining": 1000,
+    "avg_pheromone": 0.0,
+    "max_pheromone": 0.0,
+    "ants_with_food": 0,
+    "average_path_length": null,
+    "best_path_length": null
+  }
+}

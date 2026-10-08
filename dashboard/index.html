@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f4f8fc">
+  <title>ANT WORLD — Swarm Intelligence Lab</title>
+  <link rel="stylesheet" href="/dashboard/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <a class="brand" href="/" aria-label="ANT WORLD home">
+        <svg class="brand-icon" viewBox="0 0 40 40" aria-hidden="true">
+          <path d="M7 20h7m12 0h7M14 14l-5-5m17 5 5-5M14 26l-5 5m17-5 5 5"/>
+          <circle cx="11" cy="20" r="3.2"/><circle cx="20" cy="20" r="3.2"/><circle cx="29" cy="20" r="4.1"/>
+        </svg>
+        <span><strong>ANT WORLD</strong><small>SWARM INTELLIGENCE LAB</small></span>
+      </a>
+      <div class="header-info">
+        <span class="header-detail">NIM <b>247006111139</b></span>
+        <span class="header-detail">MODE <b id="headerMode">HYBRID</b></span>
+        <span class="connection-badge connecting" id="statusIndicator"><i class="status-dot"></i><span class="status-text">CONNECTING</span></span>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <section class="status-bar surface">
+        <div class="status-main">
+          <span class="section-kicker">SIMULATION STATUS</span>
+          <div class="simulation-status ready" id="simulationStatus"><i></i><b id="simulationStatusText">CONNECTING</b></div>
+        </div>
+        <div class="progress-area">
+          <div class="progress-label"><span>ITERATION <b><span id="iteration">—</span><small id="iterationTotal"> / —</small></b></span><span id="progressMessage">Menunggu koneksi backend…</span></div>
+          <div class="progress-track"><i id="progressFill"></i></div>
+        </div>
+        <div class="elapsed-block"><span class="section-kicker">ELAPSED</span><b id="elapsedClock">—</b></div>
+      </section>
+
+      <section class="simulation-layout">
+        <section class="map-card surface">
+          <div class="card-heading map-heading">
+            <div><span class="section-kicker">LIVE ENVIRONMENT</span><h1>Ant World <span>simulation map</span></h1></div>
+            <span class="iteration-tag">ITERATION <b id="statIteration">—</b></span>
+          </div>
+          <div class="map-viewport">
+            <canvas id="worldCanvas" aria-label="Peta simulasi koloni semut"></canvas>
+            <div class="map-placeholder" id="mapPlaceholder"><span class="placeholder-mark">AW</span><b>System ready</b><span>Waiting for simulation state…</span></div>
+          </div>
+          <div class="map-toolbar">
+            <div class="legend">
+              <span><i class="legend-ant"></i>Ants</span><span><i class="legend-pheromone"></i>Pheromone</span>
+              <span><i class="legend-food"></i>Food</span><span><i class="legend-nest"></i>Nest</span><span><i class="legend-obstacle"></i>Obstacle</span>
+            </div>
+            <div class="layer-toggles">
+              <label><input type="checkbox" id="toggleAnts" checked> Ants</label>
+              <label><input type="checkbox" id="togglePheromone" checked> Trails</label>
+              <label><input type="checkbox" id="toggleObstacles" checked> Obstacles</label>
+            </div>
+          </div>
+        </section>
+
+        <aside class="simulation-sidebar">
+          <section class="surface info-card">
+            <div class="card-heading"><div><span class="section-kicker">LIVE OVERVIEW</span><h2>Simulation</h2></div><span class="status-mini" id="sideStatus">READY</span></div>
+            <div class="info-list">
+              <div><span>Ants</span><b id="antCount">N/A</b></div>
+              <div><span>Food available</span><b id="foodRemaining">N/A</b></div>
+              <div><span>Food collected</span><b id="foodCollected">N/A</b></div>
+              <div><span>Average path</span><b id="averagePath">N/A</b></div>
+              <div><span>Best path</span><b id="bestPath">N/A</b></div>
+              <div><span>Iteration time</span><b id="iterationTime">N/A</b></div>
+            </div>
+            <div class="behavior-row"><span><i class="behavior-search"></i>Searching <b id="searchingCount">—</b></span><span><i class="behavior-return"></i>Returning <b id="returningCount">—</b></span><span><i class="behavior-food"></i>At food <b id="atFoodCount">—</b></span></div>
+            <button class="start-button" id="startSimulation" type="button" disabled><span>▶</span> START SIMULATION</button>
+            <p class="control-message" id="controlMessage">Waiting for backend…</p>
+          </section>
+
+          <section class="surface compute-card">
+            <div class="card-heading"><div><span class="section-kicker">PARALLEL ARCHITECTURE</span><h2>Hybrid computing</h2></div><span class="mode-pill" id="mode">HYBRID</span></div>
+            <div class="worker-block">
+              <div class="worker-head"><b>THREADPOOL</b><span id="threads">N/A</span></div>
+              <div class="worker-meta"><span>I/O-bound</span><span>Dashboard · checkpoints</span></div>
+              <div class="worker-dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="worker-block">
+              <div class="worker-head"><b>PROCESSPOOL</b><span id="processes">N/A</span></div>
+              <div class="worker-meta"><span>CPU-bound</span><span>Ant simulation</span></div>
+              <div class="worker-dots process-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+            </div>
+            <div class="compute-facts"><div><span>DATA</span><b id="configuredAnts">N/A</b></div><div><span>RANDOM SEED</span><b id="seedValue">N/A</b></div></div>
+          </section>
+        </aside>
+      </section>
+
+      <section class="telemetry surface">
+        <div class="telemetry-title"><span class="section-kicker">LIVE TELEMETRY</span><span class="telemetry-subtitle">Runtime values from simulation</span></div>
+        <div class="telemetry-grid">
+          <article class="telemetry-item"><span>FOOD COLLECTED</span><b id="telemetryFood">N/A</b></article>
+          <article class="telemetry-item"><span>THROUGHPUT</span><b id="throughput">N/A</b></article>
+          <article class="telemetry-item"><span>SPEEDUP</span><b id="speedup">N/A</b></article>
+          <article class="telemetry-item"><span>EFFICIENCY</span><b id="efficiency">N/A</b></article>
+          <article class="telemetry-item"><span>PHEROMONE AVG</span><b id="avgPheromone">N/A</b></article>
+          <article class="telemetry-item"><span>PHEROMONE PEAK</span><b id="maxPheromone">N/A</b></article>
+        </div>
+      </section>
+
+      <section class="performance-section">
+        <div class="section-heading"><div><span class="section-kicker">MEASURED RUNTIME</span><h2>Performance</h2></div><div class="runtime-meta"><span>Started <b id="startedAt">N/A</b></span><span>Completed <b id="completedAt">N/A</b></span><span>Execution <b id="totalTime">N/A</b></span></div></div>
+        <div class="performance-grid">
+          <article class="surface performance-card"><span>EXECUTION TIME</span><b class="metric-blue" id="perfTime">N/A</b><small>measured wall time</small></article>
+          <article class="surface performance-card"><span>SPEEDUP</span><b class="metric-green" id="perfSpeedup">N/A</b><small>serial / hybrid</small></article>
+          <article class="surface performance-card"><span>EFFICIENCY</span><b class="metric-orange" id="perfEfficiency">N/A</b><small>speedup / processes</small></article>
+          <article class="surface performance-card"><span>THROUGHPUT</span><b class="metric-deep" id="perfThroughput">N/A</b><small>ants per second</small></article>
+        </div>
+      </section>
+
+      <section class="analytics-section surface">
+        <div class="section-heading"><div><span class="section-kicker">ACTUAL SAMPLES</span><h2>Analytics</h2></div><span class="analytics-note">Separate scales · no synthetic values</span></div>
+        <div class="charts-grid">
+          <div class="chart-card"><div class="chart-heading"><b>Execution time</b><span>seconds</span></div><canvas id="timeChart" aria-label="Execution time chart"></canvas></div>
+          <div class="chart-card"><div class="chart-heading"><b>Speedup</b><span>×</span></div><canvas id="speedChart" aria-label="Speedup chart"></canvas></div>
+          <div class="chart-card"><div class="chart-heading"><b>Food collected</b><span>units</span></div><canvas id="foodChart" aria-label="Food collected chart"></canvas></div>
+        </div>
+      </section>
+
+      <section class="benchmark-section surface">
+        <div class="section-heading"><div><span class="section-kicker">EXPERIMENT RESULTS</span><h2>Benchmark configurations</h2></div><span class="analytics-note" id="benchmarkStatus">Memuat results/benchmark_results.csv…</span></div>
+        <div class="table-scroll"><table class="benchmark-table"><thead><tr><th>Threads</th><th>Processes</th><th>Data</th><th>Execution time</th><th>Speedup</th><th>Efficiency</th><th>Throughput</th></tr></thead><tbody id="benchmarkRows"><tr><td colspan="7" class="empty-row">Memuat data benchmark…</td></tr></tbody></table></div>
+        <div class="benchmark-charts">
+          <div class="chart-card"><div class="chart-heading"><b>Time vs Threads</b><span>seconds</span></div><canvas id="benchmarkThreadsChart" aria-label="Benchmark time versus threads"></canvas></div>
+          <div class="chart-card"><div class="chart-heading"><b>Time vs Processes</b><span>seconds</span></div><canvas id="benchmarkProcessesChart" aria-label="Benchmark time versus processes"></canvas></div>
+          <div class="chart-card"><div class="chart-heading"><b>Speedup vs Configuration</b><span>×</span></div><canvas id="benchmarkSpeedupChart" aria-label="Benchmark speedup versus configuration"></canvas></div>
+        </div>
+      </section>
+
+      <section class="surface activity-section"><div class="section-heading"><div><span class="section-kicker">SYSTEM EVENTS</span><h2>Activity</h2></div></div><p class="activity-empty">Event log belum disediakan backend. Dashboard tidak membuat aktivitas simulasi sendiri.</p></section>
+
+      <section class="surface display-card"><div><span class="section-kicker">DISPLAY OPTIONS</span><h2>Map layers</h2><p>Simulation controls are read-only except START; pause and reset are not exposed by the backend.</p></div>
+        <div class="layer-toggles"><label><input type="checkbox" id="controlAnts" checked> Ants</label><label><input type="checkbox" id="controlPheromone" checked> Pheromone</label><label><input type="checkbox" id="controlObstacles" checked> Obstacles</label></div>
+      </section>
+
+      <section class="error-panel" id="errorSection" hidden><b>Backend disconnected</b><span id="errorMessage"></span></section>
+    </main>
+    <footer><span>ANT WORLD <i>·</i> SWARM INTELLIGENCE LAB</span><span>THREADPOOL × PROCESSPOOL</span></footer>
+  </div>
+  <script src="/dashboard/app.js"></script>
+</body>
+</html>

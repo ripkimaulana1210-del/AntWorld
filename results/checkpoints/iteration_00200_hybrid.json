@@ -1,0 +1,23 @@
+{
+  "iteration": 201,
+  "timestamp": 1791393037.394119,
+  "food_collected": 3,
+  "avg_pheromone": 0.03552352722139531,
+  "ants_with_food": 47,
+  "ants_count": 1390,
+  "execution_statistics": {
+    "execution_time_seconds": 6.885594367980957,
+    "throughput": 201.8707355843829,
+    "speedup": 1.3238795581556413,
+    "efficiency_percent": 44.12931860518805,
+    "threads": 5,
+    "processes": 3,
+    "started_at": "2026-10-08T00:10:30+07:00",
+    "iteration_time_seconds": 0.03842230001464486
+  },
+  "world_summary": {
+    "food_remaining": 950,
+    "pheromone_max": 41.357880369155474
+  },
+  "avg_path_length": 45.638297872340424
+}

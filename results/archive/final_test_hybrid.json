@@ -1,0 +1,24 @@
+{
+  "total_food_collected": 0,
+  "total_iterations": 100,
+  "execution_time_seconds": 1.6681673526763916,
+  "final_avg_pheromone": 0.0,
+  "throughput": 29973.01195217643,
+  "best_path_length": null,
+  "avg_path_length": null,
+  "speedup": 0.8354859599408359,
+  "efficiency_percent": 41.77429799704179,
+  "mode": "hybrid",
+  "num_processes": 2,
+  "num_threads": 3,
+  "final_metrics": {
+    "iteration": 100,
+    "food_collected": 0,
+    "total_trips": 0,
+    "food_remaining": 997,
+    "avg_pheromone": 0.0,
+    "max_pheromone": 0.0,
+    "ants_with_food": 3
+  },
+  "baseline_time_seconds": 1.3937304019927979
+}

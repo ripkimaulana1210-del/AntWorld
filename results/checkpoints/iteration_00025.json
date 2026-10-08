@@ -1,0 +1,13 @@
+{
+  "iteration": 26,
+  "timestamp": 1791384841.558476,
+  "food_collected": 0,
+  "avg_pheromone": 0.0,
+  "ants_with_food": 0,
+  "ants_count": 1390,
+  "world_summary": {
+    "food_remaining": 1000,
+    "pheromone_max": 0.0
+  },
+  "avg_path_length": 0
+}

@@ -1,0 +1,12 @@
+{
+  "total_food_collected": 0,
+  "total_iterations": 1,
+  "execution_time_seconds": 2.2491652965545654,
+  "iterations_per_second": 0.44460938532702443,
+  "final_avg_pheromone": 0.0,
+  "peak_food_collection": 0,
+  "mean_food_collected": 0.0,
+  "std_food_collected": 0.0,
+  "collection_rate": 0.0,
+  "efficiency": 0.0
+}
