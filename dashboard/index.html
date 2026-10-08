@@ -37,6 +37,34 @@
         <div class="elapsed-block"><span class="section-kicker">ELAPSED</span><b id="elapsedClock">—</b></div>
       </section>
 
+      <section class="control-bar surface">
+        <div class="control-group">
+          <span class="section-kicker">SIMULATION CONTROL</span>
+          <div class="control-buttons">
+            <button class="btn btn-primary" id="btnStart" type="button" disabled>
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 19 12 6 20 6 4"/></svg>
+              <span>Start Simulation</span>
+            </button>
+            <button class="btn btn-amber" id="btnPause" type="button" hidden>
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              <span>Pause</span>
+            </button>
+            <button class="btn btn-emerald" id="btnResume" type="button" hidden>
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 19 12 6 20 6 4"/></svg>
+              <span>Resume</span>
+            </button>
+            <button class="btn btn-outline-danger" id="btnRestart" type="button" hidden>
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L21 8M3 16l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Restart</span>
+            </button>
+          </div>
+        </div>
+        <div class="control-feedback">
+          <span class="section-kicker">CONTROL STATUS</span>
+          <p class="control-message" id="controlMessage">Menghubungkan ke backend simulation…</p>
+        </div>
+      </section>
+
       <section class="simulation-layout">
         <section class="map-card surface">
           <div class="card-heading map-heading">
@@ -46,6 +74,14 @@
           <div class="map-viewport">
             <canvas id="worldCanvas" aria-label="Peta simulasi koloni semut"></canvas>
             <div class="map-placeholder" id="mapPlaceholder"><span class="placeholder-mark">AW</span><b>System ready</b><span>Waiting for simulation state…</span></div>
+            <div class="pause-overlay" id="pauseOverlay" hidden>
+              <div class="pause-badge">
+                <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                <b>PAUSED</b>
+                <span>Simulation state is preserved.</span>
+                <button class="btn btn-emerald btn-sm" id="btnQuickResume" type="button">▶ Resume</button>
+              </div>
+            </div>
           </div>
           <div class="map-toolbar">
             <div class="legend">
@@ -72,8 +108,6 @@
               <div><span>Iteration time</span><b id="iterationTime">N/A</b></div>
             </div>
             <div class="behavior-row"><span><i class="behavior-search"></i>Searching <b id="searchingCount">—</b></span><span><i class="behavior-return"></i>Returning <b id="returningCount">—</b></span><span><i class="behavior-food"></i>At food <b id="atFoodCount">—</b></span></div>
-            <button class="start-button" id="startSimulation" type="button" disabled><span>▶</span> START SIMULATION</button>
-            <p class="control-message" id="controlMessage">Waiting for backend…</p>
           </section>
 
           <section class="surface compute-card">
@@ -134,14 +168,38 @@
         </div>
       </section>
 
-      <section class="surface activity-section"><div class="section-heading"><div><span class="section-kicker">SYSTEM EVENTS</span><h2>Activity</h2></div></div><p class="activity-empty">Event log belum disediakan backend. Dashboard tidak membuat aktivitas simulasi sendiri.</p></section>
+      <section class="surface activity-section">
+        <div class="section-heading">
+          <div><span class="section-kicker">SYSTEM EVENTS</span><h2>Live Activity</h2></div>
+          <span class="activity-count" id="activityCount">0 events</span>
+        </div>
+        <div class="activity-feed" id="activityFeed">
+          <p class="activity-empty">Belum ada aktivitas simulasi.</p>
+        </div>
+      </section>
 
-      <section class="surface display-card"><div><span class="section-kicker">DISPLAY OPTIONS</span><h2>Map layers</h2><p>Simulation controls are read-only except START; pause and reset are not exposed by the backend.</p></div>
+      <section class="surface display-card">
+        <div><span class="section-kicker">DISPLAY OPTIONS</span><h2>Map layers</h2><p>Toggle visual layers for ant agents, pheromone intensity field, and terrain obstacles.</p></div>
         <div class="layer-toggles"><label><input type="checkbox" id="controlAnts" checked> Ants</label><label><input type="checkbox" id="controlPheromone" checked> Pheromone</label><label><input type="checkbox" id="controlObstacles" checked> Obstacles</label></div>
       </section>
 
       <section class="error-panel" id="errorSection" hidden><b>Backend disconnected</b><span id="errorMessage"></span></section>
     </main>
+
+    <div class="modal-backdrop" id="restartModal" hidden>
+      <div class="modal-dialog surface">
+        <div class="modal-header">
+          <span class="modal-warning-icon">↻</span>
+          <h3>Restart Simulation?</h3>
+        </div>
+        <p class="modal-body">Progress simulasi saat ini, makanan yang terkumpul, dan jejak feromon akan di-reset kembali ke kondisi awal (iteration 0).</p>
+        <div class="modal-actions">
+          <button class="btn btn-neutral" id="btnCancelRestart" type="button">Batal</button>
+          <button class="btn btn-danger" id="btnConfirmRestart" type="button">Konfirmasi Restart</button>
+        </div>
+      </div>
+    </div>
+
     <footer><span>ANT WORLD <i>·</i> SWARM INTELLIGENCE LAB</span><span>THREADPOOL × PROCESSPOOL</span></footer>
   </div>
   <script src="/dashboard/app.js"></script>

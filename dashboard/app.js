@@ -24,9 +24,11 @@ class AntWorldDashboard {
     this.antSprites = null;
     this.startedAt = null;
     this.latestIterationDuration = null;
+    this.pendingAction = null;
+    this.activitySignature = '';
+    this.lastStatus = null;
     this.mapPlaceholder = document.getElementById('mapPlaceholder');
     this.bindControls();
-    document.getElementById('startSimulation').addEventListener('click', () => this.startSimulation());
     this.poll();
     this.loadBenchmark();
     window.setInterval(() => this.poll(), this.pollMs);
@@ -188,6 +190,23 @@ class AntWorldDashboard {
   }
 
   bindControls() {
+    document.getElementById('btnStart').addEventListener('click', () => this.sendControl('start'));
+    document.getElementById('btnPause').addEventListener('click', () => this.sendControl('pause'));
+    document.getElementById('btnResume').addEventListener('click', () => this.sendControl('resume'));
+    document.getElementById('btnQuickResume').addEventListener('click', () => this.sendControl('resume'));
+    document.getElementById('btnRestart').addEventListener('click', () => this.showRestartModal(true));
+    document.getElementById('btnCancelRestart').addEventListener('click', () => this.showRestartModal(false));
+    document.getElementById('btnConfirmRestart').addEventListener('click', () => {
+      this.showRestartModal(false);
+      this.sendControl('restart');
+    });
+    document.getElementById('restartModal').addEventListener('click', event => {
+      if (event.target.id === 'restartModal') this.showRestartModal(false);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') this.showRestartModal(false);
+    });
+
     for (const key of Object.keys(this.visibility)) {
       const inputs = [document.getElementById(`toggle${key[0].toUpperCase()}${key.slice(1)}`),
         document.getElementById(`control${key[0].toUpperCase()}${key.slice(1)}`)];
@@ -208,24 +227,24 @@ class AntWorldDashboard {
       const response = await fetch(this.endpoint, { headers: { Accept: 'application/json' }, cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const state = await response.json();
-      if (state.status === 'starting') {
-        this.setStatus('connecting', 'INITIALIZING');
-        document.getElementById('simulationStatus').className = 'simulation-status starting';
-        document.getElementById('simulationStatusText').textContent = 'INITIALIZING';
-        document.getElementById('sideStatus').textContent = 'INITIALIZING';
-        document.getElementById('startSimulation').hidden = true;
-        document.getElementById('progressMessage').textContent = 'Preparing simulation…';
-        return;
-      }
-      if (state.error) throw new Error(state.error);
       const iteration = Number.isFinite(state.iteration) ? state.iteration : state.metrics?.iteration;
+      if (state.status === 'ready' && iteration === 0 && this.lastStatus && this.lastStatus !== 'ready') {
+        this.samples = [];
+        this.lastIteration = null;
+        this.startedAt = null;
+        this.latestIterationDuration = null;
+      }
       const mapChanged = iteration !== this.lastIteration;
       this.state = state;
+      this.lastStatus = state.status;
       if (mapChanged) this.updateMotion(state);
       this.lastPollAt = performance.now();
-      this.setStatus('connected', 'SYSTEM ONLINE');
-      document.getElementById('errorSection').hidden = true;
+      this.setStatus(state.status === 'error' ? 'error' : 'connected',
+        state.status === 'error' ? 'SYSTEM ERROR' : 'SYSTEM ONLINE');
+      document.getElementById('errorSection').hidden = state.status !== 'error';
+      if (state.status === 'error') document.getElementById('errorMessage').textContent = state.error || 'Simulation error';
       this.updateMetrics(state);
+      this.renderActivities(state.activities || []);
       this.addSample(state);
       if (mapChanged) this.render();
       if (mapChanged) this.renderCharts();
@@ -235,7 +254,10 @@ class AntWorldDashboard {
       simulationStatus.className = 'simulation-status disconnected';
       document.getElementById('simulationStatusText').textContent = 'DISCONNECTED';
       document.getElementById('sideStatus').textContent = 'DISCONNECTED';
-      document.getElementById('startSimulation').hidden = true;
+      this.state = null;
+      this.lastStatus = 'disconnected';
+      this.updateControls('disconnected');
+      document.getElementById('pauseOverlay').hidden = true;
       document.getElementById('progressMessage').textContent = 'Backend disconnected';
       document.getElementById('errorSection').hidden = false;
       document.getElementById('errorMessage').textContent = error.message;
@@ -250,25 +272,77 @@ class AntWorldDashboard {
     node.querySelector('.status-text').textContent = text;
   }
 
-  async startSimulation() {
-    const button = document.getElementById('startSimulation');
+  showRestartModal(show) {
+    document.getElementById('restartModal').hidden = !show;
+    if (show) document.getElementById('btnCancelRestart').focus();
+  }
+
+  async sendControl(action) {
+    if (this.pendingAction || !this.state) return;
+    this.pendingAction = action;
+    this.updateControls(this.state.status);
     const message = document.getElementById('controlMessage');
-    button.disabled = true;
-    message.textContent = 'Mengirim perintah start…';
+    const labels = { start: 'Starting…', pause: 'Pausing…', resume: 'Resuming…', restart: 'Restarting…' };
+    message.textContent = labels[action];
     try {
-      const response = await fetch('/api/control/start', {
+      const response = await fetch(`/api/control/${action}`, {
         method: 'POST',
         headers: { 'Accept': 'application/json' },
       });
       const result = await response.json();
       if (!response.ok || !result.accepted) throw new Error(result.message || `HTTP ${response.status}`);
-      message.textContent = 'Start diterima. Menyiapkan simulasi hybrid…';
-      document.getElementById('progressMessage').textContent = 'Initializing simulation…';
-      button.hidden = true;
-      this.setStatus('connecting', 'STARTING');
+      message.textContent = result.message || labels[action];
     } catch (error) {
-      message.textContent = error.message;
-      button.disabled = false;
+      message.textContent = error.message || `Tidak dapat ${action} simulasi.`;
+    } finally {
+      this.pendingAction = null;
+      if (this.state) this.updateControls(this.state.status);
+    }
+  }
+
+  updateControls(status) {
+    const connected = status !== 'disconnected' && status !== 'error';
+    const pending = Boolean(this.pendingAction);
+    const visible = (id, show) => { document.getElementById(id).hidden = !show; };
+    visible('btnStart', connected && status === 'ready');
+    visible('btnPause', connected && status === 'running');
+    visible('btnResume', connected && status === 'paused');
+    visible('btnRestart', connected && ['running', 'paused', 'completed', 'starting'].includes(status));
+    document.getElementById('btnQuickResume').disabled = pending || !connected;
+    for (const id of ['btnStart', 'btnPause', 'btnResume', 'btnRestart', 'btnConfirmRestart']) {
+      document.getElementById(id).disabled = pending || !connected;
+    }
+    document.getElementById('pauseOverlay').hidden = status !== 'paused';
+  }
+
+  renderActivities(activities) {
+    const feed = document.getElementById('activityFeed');
+    const latest = Array.isArray(activities) ? activities.slice(-10).reverse() : [];
+    const signature = latest.map(item => `${item.id}:${item.message}`).join('|');
+    if (signature === this.activitySignature) return;
+    this.activitySignature = signature;
+    document.getElementById('activityCount').textContent = `${latest.length} event${latest.length === 1 ? '' : 's'}`;
+    feed.replaceChildren();
+    if (!latest.length) {
+      const empty = document.createElement('p');
+      empty.className = 'activity-empty';
+      empty.textContent = 'Belum ada aktivitas simulasi.';
+      feed.appendChild(empty);
+      return;
+    }
+    for (const event of latest) {
+      const row = document.createElement('div');
+      row.className = `activity-item ${String(event.type || 'info').replace(/[^a-z0-9_-]/gi, '')}`;
+      const message = document.createElement('span');
+      message.className = 'activity-msg';
+      const marker = document.createElement('i');
+      marker.setAttribute('aria-hidden', 'true');
+      message.append(marker, document.createTextNode(String(event.message || 'Simulation event')));
+      const time = document.createElement('time');
+      time.className = 'activity-time';
+      time.textContent = String(event.time || '');
+      row.append(message, time);
+      feed.appendChild(row);
     }
   }
 
@@ -288,20 +362,23 @@ class AntWorldDashboard {
     const statusLabel = status.toUpperCase();
     statusNode.className = `simulation-status ${status}`;
     document.getElementById('simulationStatusText').textContent = statusLabel;
-    const startButton = document.getElementById('startSimulation');
-    startButton.hidden = status !== 'ready';
-    startButton.disabled = false;
+    this.updateControls(status);
     const sideStatus = document.getElementById('sideStatus');
-    if (sideStatus) sideStatus.textContent = status === 'ready' ? 'SYSTEM READY' : statusLabel;
+    if (sideStatus) sideStatus.textContent = status === 'ready' ? 'READY' : statusLabel;
     document.getElementById('progressMessage').textContent = status === 'ready'
-      ? 'Waiting for simulation…'
+      ? 'Ready to start.'
       : status === 'running' ? 'Hybrid simulation is running.'
+        : status === 'paused' ? 'Simulation paused. State is preserved.'
         : status === 'completed' ? 'Simulation complete.'
-          : status === 'starting' ? 'Initializing world…' : statusLabel;
+          : status === 'starting' ? 'Initializing world…'
+            : status === 'restarting' ? 'Resetting simulation…' : statusLabel;
     const startMessage = status === 'ready' ? 'Ready to start.'
       : status === 'running' ? 'Simulation is running.'
-        : status === 'completed' ? 'Simulation complete.' : statusLabel;
-    document.getElementById('controlMessage').textContent = startMessage;
+        : status === 'paused' ? 'Simulation paused. Choose Resume to continue.'
+          : status === 'completed' ? 'Simulation complete. Restart to run again.'
+            : status === 'starting' ? 'Preparing simulation…'
+              : status === 'restarting' ? 'Resetting simulation…' : statusLabel;
+    if (!this.pendingAction) document.getElementById('controlMessage').textContent = startMessage;
     document.getElementById('iterationTotal').textContent = Number.isFinite(totalIterations)
       ? ` / ${this.formatNumber(totalIterations)}` : ' / N/A';
     const progress = Number.isFinite(totalIterations) && totalIterations > 0 && Number.isFinite(iteration)
@@ -565,7 +642,9 @@ class AntWorldDashboard {
       const cos = Math.cos(motion.angle) * spriteScale;
       const sin = Math.sin(motion.angle) * spriteScale;
       ctx.setTransform(cos, sin, -sin, cos, cx, cy + bob);
-      ctx.drawImage(sprite, -sprite.width / 2, -sprite.height / 2);
+      const gait = Math.sin(now / 55 + Number(ant.id) * .7) > 0;
+      const frame = Array.isArray(sprite) ? sprite[Number(gait)] : sprite;
+      ctx.drawImage(frame, -frame.width / 2, -frame.height / 2);
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
@@ -576,40 +655,47 @@ class AntWorldDashboard {
   }
 
   createAntSprites() {
-    const create = (headColor) => {
+    const create = (headColor, gait) => {
       const sprite = document.createElement('canvas');
-      sprite.width = 28;
-      sprite.height = 18;
+      sprite.width = 34;
+      sprite.height = 24;
       const ctx = sprite.getContext('2d');
-      ctx.lineWidth = 1.35;
+      ctx.lineWidth = 1.2;
       ctx.lineCap = 'round';
-      ctx.strokeStyle = '#c2410c';
-      // Bake anatomy once; each live ant frame only draws and rotates one image.
+      ctx.strokeStyle = '#713f12';
+      // Pre-render 6 articulated legs in two gait poses; one inexpensive sprite draw per ant/frame.
       for (let pair = 0; pair < 3; pair++) {
-        const legX = 7 + pair * 5;
+        const legX = 8 + pair * 5;
+        const stride = gait * (pair === 1 ? -1 : 1);
         for (const side of [-1, 1]) {
           ctx.beginPath();
-          ctx.moveTo(legX, 9 + side);
-          ctx.lineTo(legX - 2, 9 + side * 5);
-          ctx.lineTo(legX - 4, 9 + side * 7);
+          ctx.moveTo(legX, 12 + side);
+          ctx.lineTo(legX - 1 + stride * 1.5, 12 + side * 5);
+          ctx.lineTo(legX - 2 + stride * 3, 12 + side * 8);
           ctx.stroke();
         }
       }
       ctx.lineWidth = 1;
+      // Antennae point toward the head (+X).
       ctx.beginPath();
-      ctx.moveTo(20, 7); ctx.quadraticCurveTo(24, 2, 27, 3);
-      ctx.moveTo(20, 11); ctx.quadraticCurveTo(24, 16, 27, 15);
+      ctx.moveTo(22, 10); ctx.quadraticCurveTo(27, 3, 32, 4);
+      ctx.moveTo(22, 14); ctx.quadraticCurveTo(27, 21, 32, 20);
       ctx.stroke();
-      ctx.fillStyle = '#f97316';
-      ctx.beginPath(); ctx.ellipse(8, 9, 5, 3.7, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(15, 9, 2.6, 0, Math.PI * 2); ctx.fill();
+      // Abdomen, narrow thorax, then head: visible segmented ant anatomy.
+      ctx.fillStyle = '#9a3412';
+      ctx.beginPath(); ctx.ellipse(8, 12, 5.8, 4.1, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c2410c';
+      ctx.beginPath(); ctx.arc(16, 12, 2.7, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = headColor;
-      ctx.beginPath(); ctx.arc(20, 9, 3.3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff0dc';
-      ctx.beginPath(); ctx.arc(21, 8, .65, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(21, 12, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff7ed';
+      ctx.beginPath(); ctx.arc(22, 11, .65, 0, Math.PI * 2); ctx.fill();
       return sprite;
     };
-    return { searching: create('#f97316'), returning: create('#38bdf8') };
+    return {
+      searching: [create('#f97316', -1), create('#f97316', 1)],
+      returning: [create('#ea580c', -1), create('#ea580c', 1)],
+    };
   }
 
   drawAnt(ctx, x, y, angle, scale, hasFood, phase, behavior) {
@@ -656,9 +742,9 @@ class AntWorldDashboard {
   }
 
   renderCharts() {
-    this.drawChart('timeChart', 'time', '#41d8ed', 's');
-    this.drawChart('speedChart', 'speedup', '#b48aff', '×');
-    this.drawChart('foodChart', 'food', '#79e4a5', '');
+    this.drawChart('timeChart', 'time', '#2563eb', 's');
+    this.drawChart('speedChart', 'speedup', '#16a34a', '×');
+    this.drawChart('foodChart', 'food', '#f97316', '');
   }
 
   drawChart(canvasId, key, color, unit) {

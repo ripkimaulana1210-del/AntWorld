@@ -98,7 +98,7 @@ python main.py --mode hybrid --iterations 1000
 python main.py --mode hybrid --iterations 1000 --dashboard --checkpoint
 ```
 
-Perintah demo utama adalah `python run.py`. Launcher menjalankan mode Hybrid dengan ThreadPool 5, ProcessPool 3, 1390 semut, dan seed NIM; dashboard tersedia di `http://127.0.0.1:8080` dan browser dibuka otomatis. Dashboard tetap hidup setelah iterasi selesai sampai pengguna menekan Ctrl+C; Ctrl+C menghentikan ProcessPool, ThreadPool, dan server dashboard. Gunakan `--no-browser` untuk tidak membuka browser atau `--iterations N` untuk demo singkat. Opsi konfigurasi CLI lama tetap tersedia untuk eksperimen.
+Perintah demo utama adalah `python run.py`. Launcher menjalankan mode Hybrid dengan ThreadPool 5, ProcessPool 3, 1390 semut, dan seed NIM; dashboard lokal tersedia di `http://127.0.0.1:8080` dan browser dibuka otomatis. Pada Railway, server bind ke `0.0.0.0:$PORT` dan browser otomatis dinonaktifkan. Dashboard menyediakan START, PAUSE, RESUME, dan RESTART; pause menahan state simulasi, resume melanjutkan dari state tersebut, dan restart membuat world baru pada kondisi awal. Setelah selesai, dashboard tetap aktif sampai pengguna menekan RESTART atau menghentikan proses dengan Ctrl+C. Gunakan `--no-browser` untuk tidak membuka browser atau `--iterations N` untuk demo singkat. Opsi konfigurasi CLI lama tetap tersedia untuk eksperimen.
 
 ## Metrik Performa
 
