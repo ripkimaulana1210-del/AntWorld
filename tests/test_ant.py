@@ -11,7 +11,9 @@ import config
 class TestAnt(unittest.TestCase):
     
     def setUp(self):
-        self.world = World(50, 50, seed=42)
+        # World must be large enough to contain the configured nest (50, 50),
+        # otherwise the ant starts outside the grid and cannot move.
+        self.world = World(100, 100, seed=42)
         self.world.initialize(5, 3)
         self.ant = Ant(0, config.NEST_POSITION, seed=42)
     

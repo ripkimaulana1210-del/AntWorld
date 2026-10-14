@@ -229,6 +229,7 @@ def run_demo(iterations: int, open_browser: bool = True) -> None:
                 continue
 
             # Simulation completed normally
+            simulation.mark_completed()  # keep status consistent (metrics/state no longer 'running')
             total_clock = time.perf_counter()
             elapsed = max(0.001, (total_clock - timer_start) - accumulated_pause)
             speedup = serial_time / elapsed if elapsed > 0 else 0.0

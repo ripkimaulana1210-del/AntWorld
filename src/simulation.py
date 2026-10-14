@@ -76,15 +76,28 @@ class Simulation:
         
         self.iteration += 1
     
+    def mark_completed(self) -> None:
+        """Set a terminal 'completed' status so status stays consistent everywhere.
+
+        The iteration limit is the official completion criterion: calling this
+        after the run loop records that the run finished, so get_metrics() and
+        get_state() no longer report 'running' while the dashboard reports
+        'completed'. Ants still carrying food are left as-is; food balance is
+        not changed.
+        """
+        self.status = 'completed'
+
     def run(self, max_iterations: int) -> Dict:
         """Run simulation for specified iterations"""
         for _ in range(max_iterations):
             self.step()
+        self.mark_completed()
         
         return self.get_metrics()
     
     def get_metrics(self) -> Dict:
         """Get current simulation metrics"""
+        ants_with_food = sum(1 for ant in self.ants if ant.has_food)
         return {
             'iteration': self.iteration,
             'status': self.status,
@@ -93,7 +106,11 @@ class Simulation:
             'food_remaining': int(np.sum(self.world.food_grid)),
             'avg_pheromone': float(np.mean(self.world.pheromone_grid)),
             'max_pheromone': float(np.max(self.world.pheromone_grid)),
-            'ants_with_food': sum(1 for ant in self.ants if ant.has_food),
+            'ants_with_food': ants_with_food,
+            # Completion criterion is the iteration limit (see mark_completed).
+            # An ant still holding food when the run stops is "in transit": this
+            # count documents that honestly without altering the food balance.
+            'trips_in_progress': ants_with_food,
             'average_path_length': (self.path_length_total / self.path_count
                                     if self.path_count else None),
             'best_path_length': self.best_path_length,

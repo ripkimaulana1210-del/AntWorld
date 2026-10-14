@@ -40,6 +40,32 @@ class TestParallel(unittest.TestCase):
         
         self.assertEqual(len(result['updated_ants']), 2)
         self.assertEqual(result['chunk_id'], 0)
+
+    def test_worker_cannot_cut_diagonal_obstacle_corner(self):
+        world_snapshot = {
+            'width': 3,
+            'height': 3,
+            'food_grid': [[0] * 3 for _ in range(3)],
+            'obstacle_grid': [
+                [True, True, True],
+                [True, False, True],
+                [True, True, False],
+            ],
+            'pheromone_grid': [[0.0] * 3 for _ in range(3)],
+            'nest_position': (1, 1),
+        }
+        ant_state = {
+            'id': 0,
+            'position': (1, 1),
+            'has_food': False,
+            'path': [],
+        }
+
+        result = worker_step_ants(
+            ([ant_state], world_snapshot, 0, 0, 1)
+        )
+
+        self.assertEqual(result['updated_ants'][0]['position'], (1, 1))
     
     def test_hybrid_simulation_initialization(self):
         """Test hybrid simulation initialization"""

@@ -11,6 +11,7 @@ Architecture:
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import List, Dict, Tuple
+import math
 import random
 import config
 
@@ -62,8 +63,13 @@ def worker_step_ants(args: tuple) -> Dict:
                 if dx == 0 and dy == 0:
                     continue
                 nx, ny = x + dx, y + dy
-                if 0 <= nx < width and 0 <= ny < height and not obstacle_grid[ny][nx]:
-                    neighbors.append((nx, ny))
+                if not (0 <= nx < width and 0 <= ny < height) or obstacle_grid[ny][nx]:
+                    continue
+                if dx and dy and (
+                    obstacle_grid[y][nx] or obstacle_grid[ny][x]
+                ):
+                    continue
+                neighbors.append((nx, ny))
         
         if not neighbors:
             # Stuck, don't move
@@ -84,12 +90,16 @@ def worker_step_ants(args: tuple) -> Dict:
         
         # Calculate probabilities
         probabilities = []
+        d_now = 0
+        if target:
+            d_now = (position[0] - target[0]) ** 2 + (position[1] - target[1]) ** 2
         for nx, ny in neighbors:
             pheromone = pheromone_grid[ny][nx] + 0.01
             
             if target:
-                distance = ((nx - target[0])**2 + (ny - target[1])**2)**0.5 + 0.01
-                heuristic = 1.0 / distance
+                d_new = (nx - target[0]) ** 2 + (ny - target[1]) ** 2
+                gain = d_now - d_new  # positive when the move gets closer to target
+                heuristic = math.exp(gain / 10.0)
             else:
                 heuristic = 1.0
             

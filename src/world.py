@@ -102,6 +102,11 @@ class World:
                     continue
                 nx, ny = x + dx, y + dy
                 if self.is_valid_position(nx, ny):
+                    if dx and dy and (
+                        not self.is_valid_position(x + dx, y)
+                        or not self.is_valid_position(x, y + dy)
+                    ):
+                        continue
                     neighbors.append((nx, ny))
         return neighbors
     

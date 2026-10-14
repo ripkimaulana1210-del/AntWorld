@@ -104,6 +104,7 @@ def run_serial(args, baseline_for_hybrid: bool = False):
             io_manager.save_checkpoint_async(checkpoint_state, checkpoint_path)
     
     metrics_collector.stop_timer()
+    sim.mark_completed()  # terminal status for consistency with dashboard/metrics
     
     # Final results
     final_metrics = sim.get_metrics()
@@ -247,6 +248,7 @@ def run_hybrid(args):
             io_manager.save_checkpoint_async(checkpoint_state, checkpoint_path)
     
     metrics_collector.stop_timer()
+    sim.mark_completed()  # terminal status for consistency with dashboard/metrics
     
     # Cleanup persistent pool
     hybrid_sim.shutdown()

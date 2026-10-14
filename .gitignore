@@ -26,3 +26,24 @@ htmlcov/
 Thumbs.db
 desktop.ini
 ~$*
+
+# Local agent/tooling workspace (contains node_modules, ~55 MB) - not project source
+.opencode/
+
+# Local working backups
+backup_master-*/
+results/backup/
+
+# Rendered slide previews (regenerable from the .pptx source)
+results/preview*/
+ANT_WORLD_Redesign_Contact_Sheet.png
+
+# Submission bundle (zip + extracted near-duplicate of the project)
+139_Ripki Maulana_E_UTS KPT.zip
+139_Ripki Maulana_E_UTS KPT/
+
+# Duplicate report at repo root (canonical copy lives in docs/)
+/Laporan_UTS_Hybrid_Computing_Ripki_Maulana.docx
+
+# Internal working prompt (not part of the deliverable)
+ANT_WORLD_Master_Prompt_OpenCode.md

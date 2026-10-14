@@ -51,17 +51,21 @@ class Ant:
         
         # Calculate probabilities for each neighbor
         probabilities = []
+        # Return gradient: reward neighbors that reduce squared distance to the
+        # target, so a food-carrying ant heads home instead of random-walking.
+        d_now = 0
+        if target:
+            d_now = (self.position[0] - target[0]) ** 2 + (self.position[1] - target[1]) ** 2
         for nx, ny in neighbors:
             pheromone = world.get_pheromone(nx, ny) + 0.01  # Avoid zero
-            
+
             if target:
-                # Distance heuristic (inverse distance to target)
-                distance = np.sqrt((nx - target[0])**2 + (ny - target[1])**2) + 0.01
-                heuristic = 1.0 / distance
+                d_new = (nx - target[0]) ** 2 + (ny - target[1]) ** 2
+                gain = d_now - d_new  # positive when the move gets closer to target
+                heuristic = np.exp(gain / 10.0)
             else:
-                # Exploration mode - slight preference for unvisited areas
                 heuristic = 1.0
-            
+
             prob = (pheromone ** alpha) * (heuristic ** beta)
             probabilities.append(prob)
         

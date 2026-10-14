@@ -520,7 +520,7 @@ class AntWorldDashboard {
     if (this.visibility.obstacles && Array.isArray(world.obstacle_grid)) {
       for (let y = 0; y < world.height; y++) for (let x = 0; x < world.width; x++) {
         if (world.obstacle_grid[y]?.[x]) {
-          this.drawRock(ctx, xAt(x) + cell / 2, yAt(y) + cell / 2, cell * .42);
+          this.drawRock(ctx, xAt(x) + cell / 2, yAt(y) + cell / 2, cell * .48);
         }
       }
     }
