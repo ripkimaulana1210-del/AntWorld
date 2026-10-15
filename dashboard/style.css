@@ -127,6 +127,10 @@ button,input { font: inherit; }
 .performance-section { margin-top:17px; }.section-heading { display:flex; justify-content:space-between; align-items:end; gap:12px; margin-bottom:10px; }.section-heading h2 { font-size:17px; }.runtime-meta { display:flex; flex-wrap:wrap; gap:13px; color:#64748b; font-size:9px; }.runtime-meta b { margin-left:4px; color:var(--secondary); font:600 9px var(--mono); }
 .performance-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }.performance-card { padding:13px; }.performance-card>span { display:block; color:var(--muted); font:8px var(--mono); letter-spacing:.06em; }.performance-card>b { display:block; margin-top:9px; font:600 19px var(--mono); }.performance-card small { display:block; margin-top:4px; color:#94a3b8; font-size:8px; }.metric-blue { color:var(--blue); }.metric-green { color:var(--green); }.metric-orange { color:#ea580c; }.metric-deep { color:var(--deep-blue); }
 .analytics-section { margin-top:13px; padding:14px; }.analytics-note { color:var(--muted); font-size:9px; }.charts-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }.chart-card { min-width:0; padding:10px; border:1px solid #edf1f5; border-radius:9px; background:#fcfdff; }.chart-heading { display:flex; justify-content:space-between; color:var(--secondary); font-size:10px; }.chart-heading span { color:var(--muted); font:9px var(--mono); }.chart-card canvas { display:block; width:100%; height:100px; margin-top:8px; }
+/* Benchmark comparison charts carry legends, tick labels and value labels, so
+   they get more vertical room than the compact runtime sparkline cards. */
+.benchmark-charts .chart-card canvas { height:190px; }
+.benchmark-charts .chart-card { padding:12px 12px 10px; }
 .benchmark-section { margin-top:13px; padding:14px; background:#fff; border:1px solid var(--border); border-radius:13px; box-shadow:0 3px 14px rgba(15,23,42,.045); }
 .table-scroll { width:100%; overflow:auto; border:1px solid #edf1f5; border-radius:9px; }
 .benchmark-table { width:100%; min-width:700px; border-collapse:collapse; text-align:right; font-size:10px; }
@@ -136,6 +140,7 @@ button,input { font: inherit; }
 .benchmark-table tbody tr:hover { background:#f8fbff; }
 .benchmark-table .empty-row { padding:18px; text-align:center; color:#94a3b8; font-family:var(--ui); }
 .benchmark-charts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:11px; }
+@media (max-width:1240px) { .benchmark-charts { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .activity-section { margin-top:13px; padding:13px 15px; border:1px solid var(--border); border-radius:13px; background:#fff; }
 .activity-empty { margin:10px 0 0; padding:10px 12px; border-radius:8px; background:#f8fafc; color:#64748b; font-size:10px; }
 .display-card { margin-top:13px; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; gap:14px; }.display-card h2 { margin:4px 0; font-size:13px; }.display-card p { margin:0; color:#64748b; font-size:9px; }.display-card .layer-toggles { flex-shrink:0; }

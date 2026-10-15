@@ -56,24 +56,27 @@ UTS/
 │   └── app.js             # Client-side render & polling state
 │
 ├── docs/                  # Laporan dan naskah dokumen
-│   ├── Laporan_UTS_Hybrid_Computing_Ripki_Maulana.docx  # Laporan akhir UTS
-│   ├── Soal UTS Komputasi Paralel dan Terdistribusi 20261.pdf # Naskah soal
-│   └── drafts/            # Arsip versi draft dokumen sebelumnya
+│   ├── Laporan_UTS_Hybrid_Computing_Ripki_Maulana.docx         # Laporan akhir UTS
+│   ├── Laporan_UTS_Hybrid_Computing_Ripki_Maulana.pdf          # Ekspor PDF (revisi 08 Okt)
+│   ├── Laporan_UTS_Hybrid_Computing_Ripki_Maulana_rev*.pdf     # Ekspor PDF revisi terbaru
+│   ├── requirements_traceability.csv    # Matriks keterlacakan spesifikasi PPT → kode
+│   ├── audit_kesesuaian_ppt_website.md  # Audit kesesuaian website terhadap PPT
+│   ├── Soal UTS Komputasi Paralel dan Terdistribusi 20261.pdf  # Naskah soal
+│   └── archive/           # Dokumen draft & laporan QA versi sebelumnya
 │
 ├── results/               # Hasil eksekusi & visualisasi benchmark
-│   ├── benchmark_results.csv        # Data riil hasil 36 pengujian benchmark
-│   ├── run_stats.json               # Ringkasan metrik eksekusi simulasi
-│   ├── speedup_vs_configuration.png # Grafik speedup & efisiensi
-│   ├── time_vs_processes.png        # Grafik perbandingan waktu vs process
-│   ├── time_vs_threads.png          # Grafik perbandingan waktu vs thread
-│   ├── checkpoints/                 # File checkpoint state simulasi
-│   ├── benchmark_io/                # File output I/O pengujian benchmark
-│   ├── report_screenshots/          # Gambar diagram dan screenshot untuk laporan
-│   └── archive/                     # Arsip hasil smoke test & pengujian sementara
+│   ├── benchmark_results.csv            # Data riil hasil 36 pengujian benchmark
+│   ├── ANT_WORLD_Presentasi_UTS_*.pptx  # Materi presentasi (versi terbaru = Redesign_Final)
+│   ├── screenshots/                     # Gambar diagram & screenshot untuk laporan
+│   └── archive/                         # Artefak lama: checkpoints/, benchmark_io/, backup/
 │
 ├── scripts/               # Script utilitas & otomatisasi
 └── tests/                 # Unit testing dan validasi pengujian (pytest)
 ```
+
+> **Artefak regenerable.** `results/checkpoints/`, `results/benchmark_io/`, dan
+> `results/run_stats.json` dihasilkan ulang saat menjalankan `run.py` / `benchmark.py`,
+> sehingga tidak dilacak git. Salinan historisnya disimpan di `results/archive/`.
 
 ## Instalasi dan Menjalankan
 
@@ -88,9 +91,6 @@ python run.py
 # Opsional: jangan buka browser dan/atau ubah panjang demo
 python run.py --no-browser --iterations 100
 
-# Mode baseline serial tetap tersedia
-python main.py --mode serial --iterations 1000
-
 # Hybrid lewat CLI lama (baseline serial otomatis diukur)
 python main.py --mode hybrid --iterations 1000
 
@@ -99,6 +99,27 @@ python main.py --mode hybrid --iterations 1000 --dashboard --checkpoint
 ```
 
 Perintah demo utama adalah `python run.py`. Launcher menjalankan mode Hybrid dengan ThreadPool 5, ProcessPool 3, 1390 semut, dan seed NIM; dashboard lokal tersedia di `http://127.0.0.1:8080` dan browser dibuka otomatis. Pada Railway, server bind ke `0.0.0.0:$PORT` dan browser otomatis dinonaktifkan. Dashboard menyediakan START, PAUSE, RESUME, dan RESTART; pause menahan state simulasi, resume melanjutkan dari state tersebut, dan restart membuat world baru pada kondisi awal. Setelah selesai, dashboard tetap aktif sampai pengguna menekan RESTART atau menghentikan proses dengan Ctrl+C. Gunakan `--no-browser` untuk tidak membuka browser atau `--iterations N` untuk demo singkat. Opsi konfigurasi CLI lama tetap tersedia untuk eksperimen.
+
+### Menjalankan Mode Serial
+
+Untuk menjalankan simulasi serial tanpa komputasi CPU paralel, gunakan `main.py`:
+
+```powershell
+python main.py --mode serial --iterations 1000
+```
+
+Jumlah iterasi bisa disesuaikan. Jumlah semut secara default mengikuti konfigurasi
+di `config.py`; gunakan `--ants` untuk mengubahnya:
+
+```powershell
+python main.py --mode serial --iterations 100 --ants 500
+```
+
+Hasil metrik ditampilkan di terminal dan disimpan ke `results/run_stats.json`
+secara default. Gunakan `--output` untuk menentukan file hasil lain, misalnya
+`python main.py --mode serial --iterations 1000 --output results/serial_stats.json`.
+Mode ini menjalankan simulasi semut secara serial; ThreadPool hanya digunakan untuk
+tugas I/O seperti menyimpan statistik atau checkpoint.
 
 Dunia 100×100 memiliki 160 sel obstacle secara default. Layer **Obstacles** aktif secara default di peta; semut menghindari sel tersebut dan tidak dapat bergerak diagonal melewati sudut yang terhalang, baik pada simulasi serial maupun hybrid.
 
@@ -113,12 +134,27 @@ Nilai diukur saat runtime dan tidak dibuat secara manual. Mode hybrid mengukur s
 
 ## Benchmark dan Grafik
 
+Jalankan perintah berikut dari folder utama proyek setelah dependensi terpasang.
+Benchmark default menguji semua kombinasi konfigurasi yang ditentukan di script:
+
 ```powershell
 python benchmark.py
+```
+
+Untuk uji coba lebih singkat, tentukan kombinasi thread, process, jumlah semut,
+dan iterasi secara langsung:
+
+```powershell
 python benchmark.py --threads 3 5 7 --processes 2 3 --ants 500 1000 1390 --iterations 100
 ```
 
-Benchmark menjalankan seluruh kombinasi thread, process, dan jumlah semut (18 konfigurasi pada nilai default). Header terminal mencantumkan nama mahasiswa, dan setiap eksekusi diberi Run ID. `results/benchmark_results.csv` menyimpan metrik beserta `Iterations`, `Seed`, dan `Run ID`. Grafik perbandingan thread/process hanya membandingkan pengukuran yang memiliki workload dan parameter lain identik; judul grafik menampilkan Run ID yang sama dengan CSV. Grafik disimpan ke `results/`:
+Benchmark menjalankan seluruh kombinasi thread, process, dan jumlah semut yang
+diberikan (18 konfigurasi pada nilai default). Header terminal mencantumkan nama
+mahasiswa dan setiap eksekusi diberi Run ID. Data metrik, termasuk `Iterations`,
+`Seed`, dan `Run ID`, disimpan di `results/benchmark_results.csv`. Grafik
+perbandingan thread/process hanya membandingkan pengukuran dengan workload dan
+parameter lain yang identik; judul grafik menampilkan Run ID yang sama dengan CSV.
+Grafik disimpan ke `results/`:
 
 1. `time_vs_threads.png` — waktu terhadap jumlah thread.
 2. `time_vs_processes.png` — waktu terhadap jumlah process.

@@ -62,12 +62,14 @@ class AntWorldDashboard {
         .every(key => Number.isFinite(row[key])) && Boolean(row['Run ID']));
       this.renderBenchmarkTable();
       this.renderBenchmarkCharts();
+      this.bindBenchmarkTooltips();
       status.textContent = `${this.benchmarkRows.length} measured configurations · run ${this.benchmarkRows[0]?.['Run ID'] || 'unknown'} · results/benchmark_results.csv`;
     } catch (error) {
       status.textContent = `Benchmark unavailable: ${error.message}`;
       document.getElementById('benchmarkRows').innerHTML =
         '<tr><td colspan="7" class="empty-row">Benchmark CSV tidak tersedia.</td></tr>';
       this.renderBenchmarkCharts();
+      this.bindBenchmarkTooltips();
     }
   }
 
@@ -92,43 +94,108 @@ class AntWorldDashboard {
     tbody.replaceChildren(...rows);
   }
 
-  renderBenchmarkCharts() {
+  /**
+   * Build the three benchmark comparison datasets from the measured CSV rows.
+   *
+   * Grouping rule: a "series" is a set of hybrid rows that share every field
+   * except the one being varied. Only series that actually vary are kept, so a
+   * line never connects two configurations that are not on the same experiment
+   * group. This is what makes Time vs Threads and Time vs Processes honest.
+   */
+  buildBenchmarkModel() {
     const hybrid = this.benchmarkRows.filter(row => row.Processes > 1);
-    const comparisonSeries = field => {
-      const fixedFields = field === 'Threads'
-        ? ['Processes', 'Data', 'Iterations', 'Seed', 'Run ID']
-        : ['Threads', 'Data', 'Iterations', 'Seed', 'Run ID'];
+    const groupingFields = {
+      Threads: ['Processes', 'Data', 'Iterations', 'Seed'],
+      Processes: ['Threads', 'Data', 'Iterations', 'Seed'],
+    };
+    const shortName = { Threads: 'T', Processes: 'P', Data: 'ants', Seed: 'seed' };
+
+    const seriesFor = field => {
+      const fixed = groupingFields[field];
       const groups = new Map();
       for (const row of hybrid) {
-        const key = JSON.stringify(fixedFields.map(name => row[name]));
-        if (!groups.has(key)) groups.set(key, { fixedFields, rows: [] });
-        groups.get(key).rows.push(row);
+        const key = JSON.stringify(fixed.map(name => row[name]));
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(row);
       }
-      return [...groups.values()].filter(group => new Set(group.rows.map(row => row[field])).size > 1)
-        .map(group => ({
-          label: group.fixedFields.map(name => {
-            const shortName = { Processes: 'P', Threads: 'T', Data: 'D', Iterations: 'I' }[name] || name;
-            return `${shortName}${group.rows[0][name]}`;
-          }).join('/'),
-          points: group.rows.sort((left, right) => left[field] - right[field]).map(row => ({
-            category: row[field], label: String(row[field]), value: row.Time,
-          })),
-        }));
+      return [...groups.values()]
+        .filter(rows => new Set(rows.map(row => row[field])).size > 1)
+        .map(rows => {
+          const sorted = rows.slice().sort((a, b) => a[field] - b[field]);
+          const head = sorted[0];
+          // Compact legend: only the fields needed to tell the lines apart.
+          const detail = fixed.filter(name => name !== 'Seed' && name !== 'Iterations')
+            .map(name => `${shortName[name]}=${name === 'Data' ? this.formatNumber(head[name]) : head[name]}`)
+            .join(' · ');
+          return {
+            label: `${detail}${fixed.includes('Iterations') ? ` · it=${head.Iterations}` : ''}`,
+            seed: head.Seed,
+            points: sorted.map(row => ({
+              category: row[field],
+              value: row.Time,
+              detail: { field, varied: row[field], row },
+            })),
+          };
+        });
     };
-    this.drawBenchmarkChart('benchmarkThreadsChart', comparisonSeries('Threads'), '#2563eb', 's');
-    this.drawBenchmarkChart('benchmarkProcessesChart', comparisonSeries('Processes'), '#38bdf8', 's');
-    this.drawBenchmarkChart('benchmarkSpeedupChart', [{
-      label: 'Speedup',
-      points: this.benchmarkRows.map(row => ({
-        category: `T${row.Threads}P${row.Processes}D${row.Data}`,
-        label: `T${row.Threads}P${row.Processes}D${row.Data}`,
+
+    // Configuration axis: one bar per (threads, processes, ants) at a fixed workload.
+    const configurations = [];
+    const seenConfig = new Set();
+    for (const row of hybrid) {
+      const key = `T${row.Threads}P${row.Processes}D${row.Data}`;
+      if (seenConfig.has(key)) continue;
+      seenConfig.add(key);
+      configurations.push({
+        label: `T${row.Threads}·P${row.Processes}·${this.formatNumber(row.Data)}`,
         value: row.Speedup,
-      })),
-    }], '#16a34a', '×');
+        detail: { row },
+      });
+    }
+    configurations.sort((a, b) => a.detail.row.Data - b.detail.row.Data
+      || a.detail.row.Threads - b.detail.row.Threads
+      || a.detail.row.Processes - b.detail.row.Processes);
+
+    // Baseline reference: serial rows are measured with Processes=1 and Speedup 1.0.
+    const serials = this.benchmarkRows.filter(row => row.Processes === 1);
+    const baseline = {
+      value: 1,
+      label: 'serial 1×',
+      measured: serials.length > 0,
+    };
+
+    return {
+      threads: seriesFor('Threads'),
+      processes: seriesFor('Processes'),
+      speedup: {
+        bars: configurations.map((item, index) => ({ ...item, index })),
+        baseline,
+        slowCount: configurations.filter(item => item.value < 1).length,
+        fastCount: configurations.filter(item => item.value >= 1).length,
+      },
+    };
   }
 
-  drawBenchmarkChart(canvasId, series, color, unit) {
-    const canvas = document.getElementById(canvasId);
+  renderBenchmarkCharts() {
+    const model = this.buildBenchmarkModel();
+    this.drawLineChart('benchmarkThreadsChart', model.threads, {
+      unit: 's', axisLabel: 'threads (I/O workers)',
+      empty: 'No matched configurations to compare',
+    });
+    this.drawLineChart('benchmarkProcessesChart', model.processes, {
+      unit: 's', axisLabel: 'processes (CPU workers)',
+      empty: 'No matched configurations to compare',
+    });
+    this.drawSpeedupChart('benchmarkSpeedupChart', model.speedup);
+    // Snapshot the finished charts so tooltips can be shown/hidden without a redraw.
+    for (const id of ['benchmarkThreadsChart', 'benchmarkProcessesChart', 'benchmarkSpeedupChart']) {
+      const canvas = document.getElementById(id);
+      if (canvas) this.captureBenchmarkBase(canvas);
+    }
+  }
+
+  /** Shared canvas setup: DPR-aware sizing plus the inset reserved for axes. */
+  prepareBenchmarkCanvas(canvas) {
     const ctx = canvas.getContext('2d');
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const bounds = canvas.getBoundingClientRect();
@@ -139,54 +206,408 @@ class AntWorldDashboard {
       canvas.height = height;
     }
     ctx.clearRect(0, 0, width, height);
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = dpr;
-    for (let index = 1; index <= 3; index++) {
-      const y = height * index / 4;
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+    ctx.textBaseline = 'middle';
+    return { ctx, dpr, width, height };
+  }
+
+  drawChartGrid(ctx, dpr, plot, ticks) {
+    ctx.strokeStyle = '#eef2f7';
+    ctx.lineWidth = 1 * dpr;
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = `${8.5 * dpr}px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.textAlign = 'right';
+    for (const tick of ticks) {
+      const y = Math.round(tick.y) + .5 * dpr;
+      ctx.beginPath();
+      ctx.moveTo(plot.left, y);
+      ctx.lineTo(plot.right, y);
+      ctx.stroke();
+      ctx.fillText(tick.label, plot.left - 5 * dpr, y);
     }
-    const allPoints = series.flatMap(item => item.points);
-    if (!allPoints.length) {
-      ctx.fillStyle = '#94a3b8'; ctx.font = `${10 * dpr}px system-ui`;
-      ctx.fillText('No matched configurations to compare', 8 * dpr, height / 2);
+    ctx.textAlign = 'left';
+  }
+
+  /**
+   * Time-vs-<field> line chart.
+   *
+   * Legend labels used to embed seed and Run ID, producing 59-character entries
+   * that overflowed the 2-column legend and collided with the plot. Long
+   * metadata now lives only in the tooltip.
+   */
+  drawLineChart(canvasId, series, options) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const { ctx, dpr, width, height } = this.prepareBenchmarkCanvas(canvas);
+    const emptyMessage = options.empty || 'No data';
+    const points = series.flatMap(item => item.points);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `600 ${10 * dpr}px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.fillText(series.length === 1 ? series[0].label : `${series.length} experiment groups`, 8 * dpr, 10 * dpr);
+
+    if (!points.length) {
+      canvas.__antHitboxes = [];
+      canvas.__antTooltip = null;
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = `${9.5 * dpr}px ${getComputedStyle(document.body).fontFamily}`;
+      ctx.textAlign = 'left';
+      ctx.fillText(emptyMessage, 8 * dpr, height / 2);
       return;
     }
-    const categories = [...new Set(allPoints.map(point => point.category))]
-      .sort((left, right) => typeof left === 'number' && typeof right === 'number'
-        ? left - right : String(left).localeCompare(String(right)));
-    const max = Math.max(...allPoints.map(point => point.value), .001);
-    const insetX = 22 * dpr, insetY = 16 * dpr;
-    const legendRows = Math.ceil(series.length / 2);
-    const plotTop = (8 + legendRows * 11) * dpr;
-    const plotBottom = height - insetY;
+
+    const categories = [...new Set(points.map(point => point.category))]
+      .sort((a, b) => a - b);
+    const values = points.map(point => point.value).filter(Number.isFinite);
+    const maxValue = Math.max(...values, 0.001);
+    const ticks = [maxValue, maxValue / 2, 0].map(value => ({ value, label: `${this.formatNumber(value, 2)}${options.unit}` }));
+    const legendLines = Math.min(series.length, 3);
+
+    const plot = {
+      left: 42 * dpr,
+      right: width - 8 * dpr,
+      // legend occupies 20 + n*11 px; add a 12 px gap so lines never touch it
+      top: (20 + legendLines * 11 + 12) * dpr,
+      bottom: height - 22 * dpr,
+    };
+    plot.bottom = Math.max(plot.bottom, plot.top + 24 * dpr);
+
+    this.drawChartGrid(ctx, dpr, plot, ticks.map(tick => ({
+      y: plot.bottom - tick.value / maxValue * (plot.bottom - plot.top),
+      label: tick.label,
+    })));
+
+    const xAt = category => categories.length === 1
+      ? (plot.left + plot.right) / 2
+      : plot.left + categories.indexOf(category) / (categories.length - 1) * (plot.right - plot.left);
+    const yAt = value => plot.bottom - value / maxValue * (plot.bottom - plot.top);
     const palette = ['#2563eb', '#f97316', '#16a34a', '#a855f7', '#0891b2', '#e11d48'];
+
+    // --- legend (stacked full-width rows so long labels never collide) ---
+    ctx.font = `${8.5 * dpr}px ${getComputedStyle(document.body).fontFamily}`;
+    const legendTop = 20 * dpr;
+    series.forEach((item, index) => {
+      const color = palette[index % palette.length];
+      const y = legendTop + index * 11 * dpr;
+      ctx.fillStyle = color;
+      ctx.fillRect(8 * dpr, y - 1.5 * dpr, 9 * dpr, 3 * dpr);
+      ctx.fillStyle = '#475569';
+      ctx.textAlign = 'left';
+      ctx.fillText(this.ellipsize(ctx, item.label, width - 30 * dpr), 21 * dpr, y);
+    });
+
+    // --- lines + points ---
+    const hitboxes = [];
     series.forEach((item, seriesIndex) => {
-      const stroke = series.length === 1 ? color : palette[seriesIndex % palette.length];
-      ctx.beginPath(); ctx.strokeStyle = stroke; ctx.lineWidth = 2 * dpr;
+      const color = palette[seriesIndex % palette.length];
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2 * dpr;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
       item.points.forEach((point, pointIndex) => {
-        const categoryIndex = categories.indexOf(point.category);
-        const x = categories.length === 1 ? width / 2
-          : insetX + categoryIndex / (categories.length - 1) * (width - 2 * insetX);
-        const y = plotBottom - point.value / max * (plotBottom - plotTop);
+        const x = xAt(point.category);
+        const y = yAt(point.value);
         if (pointIndex === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        ctx.fillStyle = stroke; ctx.fillRect(x - 2 * dpr, y - 2 * dpr, 4 * dpr, 4 * dpr);
       });
       ctx.stroke();
-      const legendX = (8 + (seriesIndex % 2) * Math.floor(width / (2 * dpr))) * dpr;
-      const legendY = (12 + Math.floor(seriesIndex / 2) * 11) * dpr;
-      ctx.fillStyle = stroke;
-      ctx.fillRect(legendX, legendY - 3 * dpr, 8 * dpr, 2 * dpr);
-      ctx.fillStyle = '#64748b'; ctx.font = `${8 * dpr}px system-ui`;
-      ctx.fillText(item.label, legendX + 11 * dpr, legendY);
+      item.points.forEach(point => {
+        const x = xAt(point.category);
+        const y = yAt(point.value);
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(x, y, 3.1 * dpr, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(x, y, 2 * dpr, 0, Math.PI * 2); ctx.fill();
+        hitboxes.push({
+          cx: x, cy: y, r: 7 * dpr,
+          title: `T${point.detail.row.Threads} · P${point.detail.row.Processes} · ${this.formatNumber(point.detail.row.Data)} ants`,
+          lines: [
+            `Execution time: ${this.formatNumber(point.detail.row.Time, 4)} s`,
+            `Speedup: ${this.formatNumber(point.detail.row.Speedup, 4)}×`,
+            `Efficiency: ${this.formatNumber(point.detail.row.Efficiency, 2)}%`,
+            `Throughput: ${this.formatNumber(point.detail.row.Throughput, 2)} ants/s`,
+            `Seed ${point.detail.row.Seed} · ${point.detail.row.Iterations} it`,
+            `Run ${point.detail.row['Run ID']}`,
+          ],
+        });
+      });
     });
-    ctx.fillStyle = '#64748b'; ctx.font = `${8 * dpr}px system-ui`;
-    ctx.fillText(`${this.formatNumber(max, 2)}${unit}`, 3 * dpr, 10 * dpr);
-    if (categories.length > 1) {
-      const first = String(categories[0]);
-      const last = String(categories[categories.length - 1]);
-      ctx.fillText(first, insetX, height - 1 * dpr);
-      ctx.fillText(last, width - ctx.measureText(last).width - insetX, height - 1 * dpr);
+
+    // --- axes ---
+    ctx.fillStyle = '#64748b';
+    ctx.font = `${8.5 * dpr}px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.textAlign = 'center';
+    categories.forEach(category => {
+      ctx.fillText(String(category), xAt(category), height - 12 * dpr);
+    });
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(options.axisLabel, (plot.left + plot.right) / 2, height - 2 * dpr);
+
+    // --- x axis rules (kept off the text baseline zone) ---
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(plot.left, plot.bottom + .5 * dpr);
+    ctx.lineTo(plot.right, plot.bottom + .5 * dpr);
+    ctx.stroke();
+
+    canvas.__antHitboxes = hitboxes;
+  }
+
+  /**
+   * Speedup-vs-configuration bar chart.
+   *
+   * Previously this was a line chart over 36 configurations in CSV order, which
+   * connected serial (Processes=1, speedup 1.0) and hybrid rows into one
+   * zig-zag and made the comparison unreadable. Bars keyed on
+   * threads/processes/ants with a 1× baseline make it legible.
+   */
+  drawSpeedupChart(canvasId, model) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const { ctx, dpr, width, height } = this.prepareBenchmarkCanvas(canvas);
+    const bars = model.bars || [];
+    canvas.__antHitboxes = [];
+    canvas.__antTooltip = null;
+
+    const font = getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `600 ${10 * dpr}px ${font}`;
+    ctx.fillText('Speedup vs configuration', 8 * dpr, 10 * dpr);
+    if (model.baseline.measured) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = `${8 * dpr}px ${font}`;
+      ctx.fillText('measured hybrid runs · dashed line = measured serial baseline', 8 * dpr, 22 * dpr);
     }
+
+    if (!bars.length) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = `${9.5 * dpr}px ${font}`;
+      ctx.fillText('No hybrid configurations measured', 8 * dpr, height / 2);
+      return;
+    }
+
+    const plot = { left: 42 * dpr, right: width - 8 * dpr, top: 36 * dpr, bottom: height - 26 * dpr };
+    plot.bottom = Math.max(plot.bottom, plot.top + 30 * dpr);
+
+    const maxValue = Math.max(...bars.map(bar => bar.value), model.baseline.value + 0.2);
+    const minValue = Math.min(...bars.map(bar => bar.value), 0);
+    const span = Math.max(maxValue - minValue, 0.2);
+    const yAt = value => plot.bottom - (value - minValue) / span * (plot.bottom - plot.top);
+
+    const ticks = [maxValue, (maxValue + minValue) / 2, minValue];
+    this.drawChartGrid(ctx, dpr, plot, ticks.map(value => ({ y: yAt(value), label: `${this.formatNumber(value, 2)}×` })));
+
+    // --- bars ---
+    const slot = (plot.right - plot.left) / bars.length;
+    const barWidth = Math.max(4 * dpr, Math.min(slot * 0.62, 26 * dpr));
+    const baselineY = yAt(model.baseline.value);
+    const hitboxes = [];
+    bars.forEach(bar => {
+      const center = plot.left + slot * (bar.index + 0.5);
+      const valueY = yAt(bar.value);
+      const top = Math.min(valueY, baselineY);
+      const bottom = Math.max(valueY, baselineY);
+      const heightPx = Math.max(1.5 * dpr, bottom - top);
+      const slow = bar.value < model.baseline.value;
+      ctx.fillStyle = slow ? '#dc2626' : '#2563eb';
+      ctx.globalAlpha = slow ? 0.9 : 0.86;
+      ctx.fillRect(center - barWidth / 2, top, barWidth, heightPx);
+      ctx.globalAlpha = 1;
+      // value label above fast bars, below slow bars, so it never sits on the baseline;
+      // clamped inside the plot so the outermost bar cannot push text off the canvas
+      ctx.fillStyle = slow ? '#b91c1c' : '#1d4ed8';
+      ctx.font = `${8 * dpr}px ${font}`;
+      ctx.textAlign = 'center';
+      const halfLabel = ctx.measureText(`${this.formatNumber(bar.value, 3)}×`).width / 2;
+      const labelX = Math.max(plot.left + halfLabel, Math.min(plot.right - halfLabel, center));
+      const labelY = slow
+        ? Math.min(plot.bottom - 3 * dpr, valueY + 7 * dpr)
+        : Math.max(plot.top + 6 * dpr, top - 6 * dpr);
+      ctx.fillText(`${this.formatNumber(bar.value, 3)}×`, labelX, labelY);
+      hitboxes.push({
+        cx: labelX, cy: (top + bottom) / 2, r: Math.max(9 * dpr, barWidth * 0.75),
+        rect: { x: Math.max(plot.left, center - slot / 2), y: plot.top, w: Math.min(slot, plot.right - plot.left), h: plot.bottom - plot.top },
+        title: `T${bar.detail.row.Threads} · P${bar.detail.row.Processes} · ${this.formatNumber(bar.detail.row.Data)} ants`,
+        lines: [
+          `Speedup: ${this.formatNumber(bar.value, 4)}×`,
+          `Execution time: ${this.formatNumber(bar.detail.row.Time, 4)} s`,
+          `Baseline serial: ${this.formatNumber(bar.detail.row.Time / (bar.value || 1), 4)} s`,
+          `Efficiency: ${this.formatNumber(bar.detail.row.Efficiency, 2)}%`,
+          `Throughput: ${this.formatNumber(bar.detail.row.Throughput, 2)} ants/s`,
+          `Seed ${bar.detail.row.Seed} · ${bar.detail.row.Iterations} it`,
+        ],
+      });
+    });
+
+    // --- 1× baseline reference (measured serial runs, Speedup = 1.0) ---
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.4 * dpr;
+    ctx.setLineDash([5 * dpr, 4 * dpr]);
+    ctx.beginPath();
+    ctx.moveTo(plot.left, Math.round(baselineY) + .5 * dpr);
+    ctx.lineTo(plot.right, Math.round(baselineY) + .5 * dpr);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `600 ${8 * dpr}px ${font}`;
+    ctx.textAlign = 'right';
+    ctx.fillText(model.baseline.measured ? '1× serial' : '1× (speedup = 1)', plot.right - 2 * dpr, baselineY - 6 * dpr);
+
+    // --- x labels: compact T/P/ants, rotated only if crowded ---
+    const labels = bars.map(bar => bar.label);
+    ctx.font = `${7.5 * dpr}px ${font}`;
+    const widest = Math.max(...labels.map(label => ctx.measureText(label).width));
+    const rotate = widest > slot * 0.98;
+    ctx.fillStyle = '#64748b';
+    if (rotate) {
+      ctx.textAlign = 'right';
+      bars.forEach(bar => {
+        const center = plot.left + slot * (bar.index + 0.5);
+        ctx.save();
+        ctx.translate(center + 3 * dpr, plot.bottom + 4 * dpr);
+        ctx.rotate(-Math.PI / 3.4);
+        ctx.fillText(bar.label, 0, 0);
+        ctx.restore();
+      });
+    } else {
+      ctx.textAlign = 'center';
+      bars.forEach(bar => {
+        const center = plot.left + slot * (bar.index + 0.5);
+        ctx.fillText(bar.label, center, plot.bottom + 10 * dpr);
+      });
+    }
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`bars: ${bars.length} hybrid configs · ${model.slowCount} below 1× (slowdown)`, 8 * dpr, height - 3 * dpr);
+
+    canvas.__antHitboxes = hitboxes;
+  }
+
+  ellipsize(ctx, text, maxWidth) {
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    let truncated = text;
+    while (truncated.length > 4 && ctx.measureText(`${truncated}…`).width > maxWidth) {
+      truncated = truncated.slice(0, -1);
+    }
+    return `${truncated}…`;
+  }
+
+  /**
+   * Tooltip binding.
+   *
+   * Tooltips are drawn onto the same canvas, so the previous implementation had
+   * no way to erase one without redrawing the whole chart. Each canvas now keeps
+   * a base bitmap captured right after a chart draw; showing and hiding a tooltip
+   * is a bitmap blit plus an overlay, which cannot accumulate artifacts.
+   */
+  bindBenchmarkTooltips() {
+    for (const id of ['benchmarkThreadsChart', 'benchmarkProcessesChart', 'benchmarkSpeedupChart']) {
+      const canvas = document.getElementById(id);
+      if (!canvas || canvas.__antTooltipBound) continue;
+      canvas.__antTooltipBound = true;
+      canvas.style.cursor = 'default';
+      canvas.addEventListener('pointermove', event => this.handleBenchmarkPointer(canvas, event));
+      canvas.addEventListener('pointerleave', () => this.clearBenchmarkTooltip(canvas));
+    }
+  }
+
+  captureBenchmarkBase(canvas) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const buffer = document.createElement('canvas');
+    buffer.width = canvas.width;
+    buffer.height = canvas.height;
+    buffer.getContext('2d').drawImage(canvas, 0, 0);
+    canvas.__antBase = buffer;
+    canvas.__antBaseDpr = dpr;
+    canvas.__antCursor = null;
+  }
+
+  clearBenchmarkTooltip(canvas) {
+    canvas.__antCursor = null;
+    canvas.style.cursor = 'default';
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (canvas.__antBase) {
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+      canvas.getContext('2d').drawImage(canvas.__antBase, 0, 0);
+    } else {
+      this.renderBenchmarkCharts();
+      return;
+    }
+    this.paintBenchmarkCursor(canvas, dpr, null);
+  }
+
+  handleBenchmarkPointer(canvas, event) {
+    if (!canvas.__antBase) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const bounds = canvas.getBoundingClientRect();
+    const px = (event.clientX - bounds.left) * dpr;
+    const py = (event.clientY - bounds.top) * dpr;
+    const hit = (canvas.__antHitboxes || []).find(box => box.rect
+      ? px >= box.rect.x && px <= box.rect.x + box.rect.w && py >= box.rect.y && py <= box.rect.y + box.rect.h
+      : Math.hypot(px - box.cx, py - box.cy) <= box.r) || null;
+    const signature = hit ? `${Math.round(px)}:${Math.round(py)}:${hit.title}` : null;
+    if (signature === canvas.__antCursor) return;
+    canvas.__antCursor = signature;
+    canvas.style.cursor = hit ? 'pointer' : 'default';
+
+    // restore the pristine chart, then draw the crosshair and tooltip on top
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(canvas.__antBase, 0, 0);
+    this.paintBenchmarkCursor(canvas, dpr, hit ? { px, py } : null);
+    if (hit) this.drawBenchmarkTooltip(ctx, dpr, canvas.width, canvas.height, { px, py, hit });
+  }
+
+  paintBenchmarkCursor(canvas, dpr, cursor) {
+    if (!cursor) return;
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.strokeStyle = 'rgba(37,99,235,.35)';
+    ctx.lineWidth = 1 * dpr;
+    ctx.setLineDash([3 * dpr, 3 * dpr]);
+    ctx.beginPath();
+    ctx.moveTo(0, Math.round(cursor.py) + .5 * dpr);
+    ctx.lineTo(canvas.width, Math.round(cursor.py) + .5 * dpr);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  drawBenchmarkTooltip(ctx, dpr, width, height, payload) {
+    const font = getComputedStyle(document.body).fontFamily;
+    const hit = payload.hit;
+    ctx.save();
+    ctx.font = `${9 * dpr}px ${font}`;
+    const titleWidth = ctx.measureText(hit.title).width;
+    ctx.font = `${8.5 * dpr}px ${font}`;
+    const rowWidths = hit.lines.map(line => ctx.measureText(line).width);
+    const boxWidth = Math.min(width - 8 * dpr, Math.max(titleWidth, ...rowWidths) + 16 * dpr);
+    const boxHeight = (16 + hit.lines.length * 12) * dpr;
+    let x = payload.px + 12 * dpr;
+    let y = payload.py + 12 * dpr;
+    if (x + boxWidth > width - 4 * dpr) x = payload.px - boxWidth - 12 * dpr;
+    if (y + boxHeight > height - 4 * dpr) y = height - boxHeight - 4 * dpr;
+    x = Math.max(4 * dpr, x);
+    y = Math.max(4 * dpr, y);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.97)';
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1 * dpr;
+    ctx.beginPath();
+    ctx.roundRect(x, y, boxWidth, boxHeight, 5 * dpr);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `700 ${9 * dpr}px ${font}`;
+    ctx.fillText(hit.title, x + 8 * dpr, y + 10 * dpr, boxWidth - 16 * dpr);
+    ctx.fillStyle = '#475569';
+    ctx.font = `${8.5 * dpr}px ${font}`;
+    hit.lines.forEach((line, index) => {
+      ctx.fillText(line, x + 8 * dpr, y + (23 + index * 12) * dpr, boxWidth - 16 * dpr);
+    });
+    ctx.restore();
   }
 
   bindControls() {
